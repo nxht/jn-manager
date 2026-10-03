@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Jupyter Notebook Manager",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "outFiles": ["${workspaceFolder}/build/dist/**/*.js"],
+      "preLaunchTask": "pnpm: compile"
+    }
+  ]
+}

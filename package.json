@@ -1,0 +1,243 @@
+{
+  "name": "jupyter-notebook-manager",
+  "displayName": "Jupyter Notebook Manager",
+  "description": "Inspect and stop your own Jupyter kernels on Linux and Remote SSH hosts.",
+  "version": "0.1.4",
+  "packageManager": "pnpm@11.14.0",
+  "publisher": "jn-manager",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Data Science"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./build/dist/extension.js",
+  "activationEvents": [
+    "onView:jnManager.kernels"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    },
+    "virtualWorkspaces": {
+      "supported": false
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "test": "pnpm compile && node --test build/dist/test/*.test.js",
+    "package": "pnpm compile && node build/dist/packaging.js",
+    "format": "biome format --write .",
+    "check": "biome check ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "1.95.0",
+    "@vscode/vsce": "^4.0.0",
+    "typescript": "^5.7.0"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "jnManager.copy",
+        "title": "Copy",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "jnManager.refresh",
+        "title": "Jupyter Notebook Manager: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "jnManager.interrupt",
+        "title": "Jupyter Notebook Manager: Interrupt Kernel",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "jnManager.stop",
+        "title": "Jupyter Notebook Manager: Stop Kernel",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "jnManager.forceKill",
+        "title": "Jupyter Notebook Manager: Force Kill Kernel",
+        "icon": "$(trash)"
+      }
+    ],
+    "views": {
+      "jnManager": [
+        {
+          "id": "jnManager.kernels",
+          "name": "Jupyter Notebook Manager",
+          "icon": "resources/notebook.svg",
+          "when": "isWorkspaceTrusted"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "jnManager.copy",
+        "key": "ctrl+c",
+        "mac": "cmd+c",
+        "when": "focusedView == jnManager.kernels && listFocus && !inputFocus"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "jnManager.refresh",
+          "when": "view == jnManager.kernels",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "jnManager.copy",
+          "when": "view == jnManager.kernels && viewItem == kernelDetail",
+          "group": "inline@1"
+        },
+        {
+          "command": "jnManager.copy",
+          "when": "view == jnManager.kernels && viewItem == ownedKernel",
+          "group": "copy@1"
+        },
+        {
+          "command": "jnManager.interrupt",
+          "when": "view == jnManager.kernels && viewItem == ownedKernel",
+          "group": "inline@1"
+        },
+        {
+          "command": "jnManager.stop",
+          "when": "view == jnManager.kernels && viewItem == ownedKernel",
+          "group": "inline@2"
+        },
+        {
+          "command": "jnManager.forceKill",
+          "when": "view == jnManager.kernels && viewItem == ownedKernel",
+          "group": "management@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "jnManager.copy",
+          "when": "false"
+        },
+        {
+          "command": "jnManager.interrupt",
+          "when": "false"
+        },
+        {
+          "command": "jnManager.stop",
+          "when": "false"
+        },
+        {
+          "command": "jnManager.forceKill",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Jupyter Notebook Manager",
+      "properties": {
+        "jnManager.refreshSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 2,
+          "maximum": 300,
+          "description": "Refresh interval while the kernel view is visible."
+        },
+        "jnManager.highlights.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Highlight kernel resource usage and process uptime."
+        },
+        "jnManager.highlights.cpuWarningPercent": {
+          "type": "number",
+          "default": 80,
+          "minimum": 0,
+          "description": "CPU warning threshold as a percentage of all host logical CPUs (inclusive).",
+          "maximum": 100
+        },
+        "jnManager.highlights.cpuCriticalPercent": {
+          "type": "number",
+          "default": 100,
+          "minimum": 0,
+          "description": "CPU critical threshold as a percentage of all host logical CPUs (inclusive).",
+          "maximum": 100
+        },
+        "jnManager.highlights.memoryWarningPercent": {
+          "type": "number",
+          "default": 80,
+          "minimum": 0,
+          "description": "RAM warning threshold as a percentage of total host RAM (exclusive).",
+          "maximum": 100
+        },
+        "jnManager.highlights.memoryCriticalPercent": {
+          "type": "number",
+          "default": 90,
+          "minimum": 0,
+          "description": "RAM critical threshold as a percentage of total host RAM (exclusive).",
+          "maximum": 100
+        },
+        "jnManager.highlights.uptimeWarningHours": {
+          "type": "number",
+          "default": 24,
+          "minimum": 0,
+          "description": "Process uptime warning threshold in hours (exclusive)."
+        },
+        "jnManager.highlights.uptimeCriticalHours": {
+          "type": "number",
+          "default": 48,
+          "minimum": 0,
+          "description": "Process uptime critical threshold in hours (exclusive)."
+        },
+        "jnManager.includeExternalServers": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show locally discovered JupyterLab/Notebook server kernels outside the current editor window. Current-window kernels remain visible. Only owned local processes and verified loopback servers are supported."
+        },
+        "jnManager.includeOtherWindows": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show remaining VS Code/Cursor kernels not verified as belonging to the current window, including unmapped editor kernels. Kernels grouped under a Jupyter server follow includeExternalServers."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "jnManager",
+          "title": "Jupyter Notebook Manager",
+          "icon": "resources/notebook.svg"
+        }
+      ]
+    },
+    "colors": [
+      {
+        "id": "jnManager.warningForeground",
+        "description": "Warning text and icons in Jupyter Notebook Manager.",
+        "defaults": {
+          "dark": "#cca700",
+          "light": "#9c6500",
+          "highContrast": "#ffff00",
+          "highContrastLight": "#9c6500"
+        }
+      },
+      {
+        "id": "jnManager.criticalForeground",
+        "description": "Critical text and icons in Jupyter Notebook Manager.",
+        "defaults": {
+          "dark": "#f14c4c",
+          "light": "#c72e0f",
+          "highContrast": "#ff6666",
+          "highContrastLight": "#c72e0f"
+        }
+      }
+    ]
+  }
+}

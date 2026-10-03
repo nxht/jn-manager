@@ -1,0 +1,14 @@
+src/**
+node_modules/**
+.vscode/**
+tsconfig.json
+build/dist/test/**
+**/*.map
+AGENTS.md
+biome.json
+pnpm-lock.yaml
+pnpm-workspace.yaml
+build/*.vsix
+**/*.ipynb
+.gitignore
+build/dist/packaging.js
