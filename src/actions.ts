@@ -38,11 +38,9 @@ export async function actOnKernel(
   readCurrent: (pid: number) => Promise<KernelProcess | undefined>,
   signal: (pid: number, signal: NodeJS.Signals) => void = process.kill,
   uid = process.geteuid?.(),
-  shutdown?: (id: string) => Promise<void>,
 ): Promise<void> {
   if (uid === undefined) throw new Error('Linux user identity is unavailable');
   const actual = await readCurrent(expected.pid);
   assertSameKernel(expected, actual, uid);
-  if (action === 'stop' && shutdown) await shutdown(actual.kernelId);
-  else signal(actual.pid, signals[action]);
+  signal(actual.pid, signals[action]);
 }

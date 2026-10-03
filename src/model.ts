@@ -18,8 +18,6 @@ export interface KernelMetadata {
   id: string;
   name: string;
   executionState: string;
-  connections?: number;
-  lastActivity?: string;
   notebookPaths: string[];
   source?: 'editor' | 'editor-log' | 'server';
 }
@@ -40,9 +38,10 @@ export function mergeKernels(
 ): KernelRow[] {
   const counts = new Map<string, number>();
   for (const p of processes) counts.set(p.kernelId, (counts.get(p.kernelId) ?? 0) + 1);
+  const byId = new Map<string, KernelMetadata | undefined>();
+  for (const m of metadata) byId.set(m.id, byId.has(m.id) ? undefined : m);
   return processes.map((p) => {
-    const matches = metadata.filter((m) => m.id === p.kernelId);
-    const match = counts.get(p.kernelId) === 1 && matches.length === 1 ? matches[0] : undefined;
+    const match = counts.get(p.kernelId) === 1 ? byId.get(p.kernelId) : undefined;
     return { process: p, metadata: match, serverUrl: match ? serverUrl : undefined };
   });
 }

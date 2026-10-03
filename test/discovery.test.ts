@@ -4,11 +4,11 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import test from 'node:test';
-import { localServerUrl, RuntimeDiscovery, runtimeDirectories } from '../discovery';
-import { type EditorKernel, EditorTracker, readKernelIdentity } from '../editor';
-import type { KernelProcess, KernelRow } from '../model';
-import { kernelLaunchFromArgs } from '../proc';
+import { test } from 'vitest';
+import { localServerUrl, RuntimeDiscovery, runtimeDirectories } from '../src/discovery';
+import { type EditorKernel, EditorTracker, readKernelIdentity } from '../src/editor';
+import type { KernelProcess, KernelRow } from '../src/model';
+import { kernelLaunchFromArgs } from '../src/proc';
 
 const uid = process.geteuid?.() ?? 1000;
 const p: KernelProcess = {
@@ -272,7 +272,7 @@ async function fixture() {
 
 test('discover private owned server runtime files and deduplicate directories without manual settings', async (t) => {
   const f = await fixture();
-  t.after(() => fs.rm(f.root, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rm(f.root, { recursive: true, force: true }));
   const discovery = new RuntimeDiscovery(f.root, uid);
   const servers = await discovery.servers([f.runtime, f.runtime]);
   assert.equal(servers.length, 1);
@@ -283,7 +283,7 @@ test('discover private owned server runtime files and deduplicate directories wi
 
 test('ignore unsafe permissions, symlinks, foreign UID, stale PIDs, malformed JSON, and non-local runtime URLs', async (t) => {
   const f = await fixture();
-  t.after(() => fs.rm(f.root, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rm(f.root, { recursive: true, force: true }));
   const discovery = new RuntimeDiscovery(f.root, uid);
   await fs.chmod(f.file, 0o644);
   assert.deepEqual(await discovery.servers([f.runtime]), []);
@@ -316,7 +316,7 @@ async function listen(server: Server): Promise<string> {
 
 test('automatic metadata GET and confirmed shutdown use discovered credentials; stale server identity blocks DELETE', async (t) => {
   const f = await fixture();
-  t.after(() => fs.rm(f.root, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rm(f.root, { recursive: true, force: true }));
   const requests: string[] = [];
   const server = createServer((req, res) => {
     assert.equal(req.headers.authorization, 'token test-secret');
@@ -344,7 +344,7 @@ test('automatic metadata GET and confirmed shutdown use discovered credentials; 
     );
   });
   const url = await listen(server);
-  t.after(() => {
+  t.onTestFinished(() => {
     server.closeAllConnections();
     return new Promise<void>((resolve) => server.close(() => resolve()));
   });
@@ -352,9 +352,7 @@ test('automatic metadata GET and confirmed shutdown use discovered credentials; 
   const discovery = new RuntimeDiscovery(f.root, uid);
   const owned = { ...p, connectionFile: path.join(f.runtime, 'kernel-one.json') };
   const found = await discovery.enrich([owned]);
-  assert.equal(found.servers, 1);
-  assert.equal(found.failed, 0);
-  const row = found.rows[0];
+  const row = found[0];
   assert(row);
   assert.deepEqual(row.metadata?.notebookPaths, ['lab.ipynb']);
   assert.equal(row.metadata?.source, 'server');

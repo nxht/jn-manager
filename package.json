@@ -2,12 +2,12 @@
   "name": "jupyter-notebook-manager",
   "displayName": "Jupyter Notebook Manager",
   "description": "Inspect and stop your own Jupyter kernels on Linux and Remote SSH hosts.",
-  "version": "0.1.4",
+  "version": "0.0.0",
   "packageManager": "pnpm@11.14.0",
   "publisher": "jn-manager",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.95.0"
+    "vscode": "^1.100.0"
   },
   "categories": [
     "Data Science"
@@ -17,7 +17,8 @@
   ],
   "main": "./build/dist/extension.js",
   "activationEvents": [
-    "onView:jnManager.kernels"
+    "onView:jnManager.kernels",
+    "onStartupFinished"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -28,18 +29,21 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p .",
-    "test": "pnpm compile && node --test build/dist/test/*.test.js",
+    "compile": "pnpm typecheck && node esbuild.mjs",
+    "test": "pnpm typecheck && vitest run",
     "package": "pnpm compile && node build/dist/packaging.js",
     "format": "biome format --write .",
-    "check": "biome check ."
+    "check": "biome check .",
+    "typecheck": "tsc -p tsconfig.test.json"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
-    "@types/node": "^20.0.0",
-    "@types/vscode": "1.95.0",
+    "@types/node": "^22.20.5",
+    "@types/vscode": "1.100.0",
     "@vscode/vsce": "^4.0.0",
-    "typescript": "^5.7.0"
+    "esbuild": "^0.28.2",
+    "typescript": "^5.7.0",
+    "vitest": "^5.0.3"
   },
   "contributes": {
     "commands": [
@@ -56,12 +60,18 @@
       {
         "command": "jnManager.interrupt",
         "title": "Jupyter Notebook Manager: Interrupt Kernel",
-        "icon": "$(debug-pause)"
+        "icon": {
+          "light": "resources/interrupt-light.svg",
+          "dark": "resources/interrupt-dark.svg"
+        }
       },
       {
         "command": "jnManager.stop",
         "title": "Jupyter Notebook Manager: Stop Kernel",
-        "icon": "$(debug-stop)"
+        "icon": {
+          "light": "resources/stop-light.svg",
+          "dark": "resources/stop-dark.svg"
+        }
       },
       {
         "command": "jnManager.forceKill",
@@ -149,7 +159,7 @@
           "default": 5,
           "minimum": 2,
           "maximum": 300,
-          "description": "Refresh interval while the kernel view is visible."
+          "description": "Refresh interval for kernel memory in the status bar and the visible kernel view."
         },
         "jnManager.highlights.enabled": {
           "type": "boolean",
@@ -239,5 +249,22 @@
         }
       }
     ]
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nxht/jn-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nxht/jn-manager/issues"
+  },
+  "homepage": "https://github.com/nxht/jn-manager#readme",
+  "keywords": [
+    "jupyter",
+    "notebook",
+    "kernel",
+    "python",
+    "linux",
+    "remote"
+  ],
+  "type": "module"
 }

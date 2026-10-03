@@ -1,9 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import * as path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // Only exact stable release tags are package versions; never infer a release from an ancestor.
-export function taggedVersion(tags: string[], fallback: string): string {
+export function taggedVersion(tags: string[]): string {
   const versions = new Set(
     tags
       .filter((tag) => /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(tag))
@@ -11,26 +10,29 @@ export function taggedVersion(tags: string[], fallback: string): string {
   );
   if (versions.size > 1)
     throw new Error('Conflicting release tags on HEAD; keep one release version.');
-  return [...versions][0] ?? fallback;
+  const version = [...versions][0];
+  if (!version)
+    throw new Error('Packaging requires an exact release tag on HEAD (vX.Y.Z or X.Y.Z).');
+  return version;
 }
 
-export function packageVersion(root: string, fallback: string): string {
+export function packageVersion(root: string): string {
   const options = { cwd: root, encoding: 'utf8' as const, stdio: 'pipe' as const };
   try {
     execFileSync('git', ['rev-parse', '--verify', 'HEAD'], options);
-  } catch {
-    // Source archives and repositories without commits still support local packaging.
-    return fallback;
+  } catch (error) {
+    const failure = error as NodeJS.ErrnoException & { status?: number };
+    if (failure.code !== 'ENOENT' && failure.status !== 128) throw error;
+    throw new Error('Packaging requires Git and a committed, release-tagged checkout.');
   }
   const tags = execFileSync('git', ['tag', '--points-at', 'HEAD'], options).trim().split(/\r?\n/);
-  return taggedVersion(tags, fallback);
+  return taggedVersion(tags);
 }
 
-if (require.main === module) {
-  const root = path.resolve(__dirname, '../..');
-  const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
-  const version = packageVersion(root, manifest.version);
-  console.log(`Packaging version ${version} (exact release tag on HEAD, or manifest fallback).`);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const root = fileURLToPath(new URL('../..', import.meta.url));
+  const version = packageVersion(root);
+  console.log(`Packaging version ${version} from the exact release tag on HEAD.`);
   execFileSync(
     'pnpm',
     [

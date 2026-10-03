@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import { defaultHighlights, highestSeverity, resourceHighlights } from '../highlights';
-import type { KernelProcess } from '../model';
+import { test } from 'vitest';
+import { defaultHighlights, highestSeverity, resourceHighlights } from '../src/highlights';
+import type { KernelProcess } from '../src/model';
 
 const process: KernelProcess = {
   pid: 123,

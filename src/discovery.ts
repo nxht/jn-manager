@@ -145,11 +145,8 @@ export class RuntimeDiscovery {
     return servers;
   }
 
-  async enrich(
-    processes: KernelProcess[],
-  ): Promise<{ rows: KernelRow[]; servers: number; failed: number }> {
+  async enrich(processes: KernelProcess[]): Promise<KernelRow[]> {
     const servers = await this.servers(runtimeDirectories(processes));
-    let failed = 0;
     const matches = await Promise.all(
       servers.map(async (server) => {
         try {
@@ -160,19 +157,17 @@ export class RuntimeDiscovery {
             server.url,
           ).map((row) => ({ ...row, serverId: row.metadata ? server.id : undefined }));
         } catch {
-          failed++;
           return [];
         }
       }),
     );
-    return {
-      rows: processes.map((p) => {
-        const joined = matches.flat().filter((r) => r.process === p && r.metadata);
-        return joined.length === 1 && joined[0] ? joined[0] : { process: p };
-      }),
-      servers: servers.length,
-      failed,
-    };
+    const joined = new Map<KernelProcess, KernelRow | undefined>();
+    for (const rows of matches) {
+      for (const row of rows) {
+        if (row.metadata) joined.set(row.process, joined.has(row.process) ? undefined : row);
+      }
+    }
+    return processes.map((p) => joined.get(p) ?? { process: p });
   }
 
   async shutdown(row: KernelRow, revalidate: () => Promise<void>): Promise<void> {

@@ -46,16 +46,11 @@ export function parseMetadata(kernels: unknown, sessions: unknown): KernelMetada
   }
   return kernels.map((value) => {
     const kernel = object(value);
-    const connections = kernel.connections;
-    if (typeof connections !== 'number' || !Number.isSafeInteger(connections) || connections < 0)
-      throw new Error('Invalid kernel connections');
     const id = string(kernel.id);
     return {
       id,
       name: string(kernel.name),
       executionState: string(kernel.execution_state),
-      connections,
-      lastActivity: string(kernel.last_activity),
       notebookPaths: [...(paths.get(id) ?? [])],
     };
   });
@@ -71,17 +66,25 @@ export class JupyterClient {
     this.baseUrl = normalizeServerUrl(url);
   }
 
-  private async get(endpoint: string, signal: AbortSignal): Promise<unknown> {
-    let response: Response;
+  private async send(endpoint: string, signal: AbortSignal, method = 'GET'): Promise<Response> {
     try {
-      response = await this.request(new URL(endpoint, this.baseUrl), {
+      return await this.request(new URL(endpoint, this.baseUrl), {
+        method,
         headers: this.token ? { Authorization: `token ${this.token}` } : {},
         redirect: 'error',
         signal,
       });
     } catch {
-      throw new Error('Jupyter request failed or timed out. Check the server URL, TLS and token.');
+      throw new Error(
+        method === 'DELETE'
+          ? 'Jupyter shutdown failed or timed out. Refresh to check the kernel before trying again.'
+          : 'Jupyter request failed or timed out. Check server access and authentication.',
+      );
     }
+  }
+
+  private async get(endpoint: string, signal: AbortSignal): Promise<unknown> {
+    const response = await this.send(endpoint, signal);
     if (!response.ok)
       throw new Error(
         `Jupyter returned HTTP ${response.status}. Check server access and authentication.`,
@@ -128,33 +131,15 @@ export class JupyterClient {
 
   async shutdown(kernelId: string): Promise<void> {
     if (!/^[a-zA-Z0-9_-]+$/.test(kernelId)) throw new Error('Invalid kernel ID');
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30000);
-    try {
-      let response: Response;
-      try {
-        response = await this.request(
-          new URL(`api/kernels/${encodeURIComponent(kernelId)}`, this.baseUrl),
-          {
-            method: 'DELETE',
-            headers: this.token ? { Authorization: `token ${this.token}` } : {},
-            redirect: 'error',
-            signal: controller.signal,
-          },
-        );
-      } catch {
-        throw new Error(
-          'Jupyter shutdown failed or timed out. Refresh to check the kernel before trying again.',
-        );
-      }
-      await response.body?.cancel();
-      if (response.status !== 204)
-        throw new Error(
-          `Jupyter shutdown returned HTTP ${response.status}. No process signal was sent.`,
-        );
-    } finally {
-      clearTimeout(timer);
-      controller.abort();
-    }
+    const response = await this.send(
+      `api/kernels/${encodeURIComponent(kernelId)}`,
+      AbortSignal.timeout(30000),
+      'DELETE',
+    );
+    await response.body?.cancel();
+    if (response.status !== 204)
+      throw new Error(
+        `Jupyter shutdown returned HTTP ${response.status}. No process signal was sent.`,
+      );
   }
 }

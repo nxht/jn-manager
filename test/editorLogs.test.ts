@@ -2,19 +2,19 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import test from 'node:test';
+import { test } from 'vitest';
 import {
   applyLaunches,
   EditorLogDiscovery,
   editorHostDirectory,
   logSessionOffset,
   notebookLaunches,
-} from '../editorLogs';
-import { groupKernels } from '../grouping';
-import type { KernelRow } from '../model';
-import { formatUptime, kernelDetails } from '../presentation';
+} from '../src/editorLogs';
+import { groupKernels } from '../src/grouping';
+import type { KernelRow } from '../src/model';
+import { formatUptime, kernelDetails } from '../src/presentation';
 
-const time = Date.parse('2026-10-03T09:35:31.437Z');
+const time = Date.parse('2026-10-03T09:35:31.454Z');
 const row: KernelRow = {
   process: {
     pid: 42566,
@@ -72,6 +72,33 @@ test('withhold stale, mismatched, conflicting or incomplete launch evidence', ()
   assert.deepEqual(notebookLaunches(overlap.join('\n'), '2026-10-03'), []);
 });
 
+test('duplicate completed launches are withheld even when notebook names agree', () => {
+  const launches = notebookLaunches(log, '2026-10-03', '/home/test', 8 * 3600000);
+  assert.equal(applyLaunches([row], [...launches, ...launches])[0], row);
+});
+
+test('launch fallback preserves live server metadata, routing and current-window membership', () => {
+  const launches = notebookLaunches(log, '2026-10-03', '/home/test', 8 * 3600000);
+  const serverRow: KernelRow = {
+    ...row,
+    currentWindow: true,
+    serverId: 'verified-server',
+    serverUrl: 'http://localhost:8888/',
+    metadata: {
+      id: row.process.kernelId,
+      name: 'python3',
+      executionState: 'busy',
+      notebookPaths: [],
+      source: 'server',
+    },
+  };
+  const result = applyLaunches([serverRow], launches)[0];
+  assert.deepEqual(result, {
+    ...serverRow,
+    metadata: { ...serverRow.metadata, notebookPaths: ['/home/test/project/test.ipynb'] },
+  });
+});
+
 test('exact extension host determines current window; API metadata takes precedence', () => {
   const launches = notebookLaunches(log, '2026-10-03', '/home/test', 8 * 3600000).map((l) => ({
     ...l,
@@ -118,7 +145,7 @@ test('owned log discovery reads completed launches and rejects symbolic link log
     const host = path.join(root, stamp, 'exthost2');
     const output = path.join(host, 'output_logging_fixture');
     await fs.mkdir(output, { recursive: true });
-    const text = log.replaceAll('17:35:31.437', iso.slice(11, 23));
+    const text = log.replace(/17:35:31\.\d+/g, iso.slice(11, 23));
     const file = path.join(output, '1-Jupyter.log');
     await fs.writeFile(file, text);
     const current = { ...row, process: { ...row.process, createdAtEpochMs: now.getTime() } };
@@ -155,4 +182,20 @@ test('uptime is compact, copyable and handles seconds through days', () => {
   assert.equal(formatUptime(3601), '1h 1s');
   assert.equal(formatUptime(90061), '1d 1h 1m 1s');
   assert.equal(kernelDetails(row).find((d) => d.label === 'Uptime')?.value, '1m');
+});
+
+test('match the process launch after slow environment setup', () => {
+  const delayed = log.replace('17:35:31.437', '17:34:00.000');
+  const launches = notebookLaunches(delayed, '2026-10-03', '/home/test', 8 * 3600000);
+  assert.equal(launches[0]?.time, time);
+  assert.deepEqual(applyLaunches([row], launches)[0]?.metadata?.notebookPaths, [
+    '/home/test/project/test.ipynb',
+  ]);
+});
+
+test('allow bounded client-host clock skew but reject a full minute or duplicate evidence', () => {
+  const launches = notebookLaunches(log, '2026-10-03', '/home/test', 8 * 3600000);
+  const skewed = { ...row, process: { ...row.process, createdAtEpochMs: time + 31000 } };
+  assert.ok(applyLaunches([skewed], launches)[0]?.metadata);
+  assert.equal(applyLaunches([skewed], [...launches, ...launches])[0]?.metadata, undefined);
 });

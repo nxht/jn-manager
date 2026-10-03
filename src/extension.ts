@@ -6,6 +6,7 @@ import { type EditorKernel, EditorTracker, identityCode, readKernelIdentity } fr
 import { EditorLogDiscovery, editorHostDirectory, editorLogRoots } from './editorLogs';
 import { visibleKernels } from './grouping';
 import { defaultHighlights, type HighlightSettings } from './highlights';
+import { memoryStatus } from './presentation';
 import { LinuxCollector } from './proc';
 import { copyText, highlightDecorations, KernelItem, KernelView } from './view';
 
@@ -53,7 +54,14 @@ export function activate(context: vscode.ExtensionContext): void {
     treeDataProvider: provider,
     showCollapseAll: true,
   });
+  const memory = vscode.window.createStatusBarItem(
+    'jnManager.memory',
+    vscode.StatusBarAlignment.Right,
+  );
+  memory.name = 'Jupyter Kernel Memory';
+  memory.command = 'jnManager.kernels.focus';
   context.subscriptions.push(
+    memory,
     provider,
     tree,
     vscode.window.registerFileDecorationProvider(highlightDecorations),
@@ -62,6 +70,13 @@ export function activate(context: vscode.ExtensionContext): void {
   let refreshing: Promise<void> | undefined;
   let revision = 0;
   let timer: NodeJS.Timeout | undefined;
+  let refreshInterval = 5000;
+  let nextRefreshAt = Date.now();
+
+  function countdown(): void {
+    const seconds = Math.max(0, Math.ceil((nextRefreshAt - Date.now()) / 1000));
+    tree.description = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  }
 
   async function editorKernel(uri: string): Promise<EditorKernel | undefined> {
     const extension = vscode.extensions.getExtension<JupyterExports>('ms-toolsai.jupyter');
@@ -92,6 +107,13 @@ export function activate(context: vscode.ExtensionContext): void {
     const currentRevision = revision;
     try {
       const processes = await collector.snapshot();
+      if (!disposed && currentRevision === revision) {
+        const summary = memoryStatus(processes);
+        memory.text = summary.text;
+        memory.tooltip = `${summary.tooltip}\nHost: ${hostname()}\nClick to open Jupyter Notebook Manager.`;
+        memory.show();
+      }
+      if (!tree.visible || disposed || currentRevision !== revision) return;
       const discovered = await discovery.enrich(processes);
       const notebooks = vscode.workspace.notebookDocuments
         .filter((n) => n.notebookType === 'jupyter-notebook')
@@ -104,8 +126,8 @@ export function activate(context: vscode.ExtensionContext): void {
           };
         });
       const editorRows = processes.length
-        ? await editor.enrich(discovered.rows, notebooks, editorKernel)
-        : discovered.rows;
+        ? await editor.enrich(discovered, notebooks, editorKernel)
+        : discovered;
       const rows = await editorLogs.enrich(editorRows);
       if (!disposed && currentRevision === revision) {
         const visible = visibleKernels(rows, {
@@ -116,14 +138,12 @@ export function activate(context: vscode.ExtensionContext): void {
           visible,
           rows.length ? 'No kernels match the visibility settings.' : 'No running kernels.',
         );
-        tree.description =
-          visible.length === rows.length
-            ? `${visible.length} kernels`
-            : `${visible.length} of ${rows.length} kernels`;
       }
     } catch (error) {
-      if (!disposed && currentRevision === revision)
+      if (!disposed && currentRevision === revision) {
+        memory.hide();
         provider.update([], error instanceof Error ? error.message : 'Kernel discovery failed.');
+      }
     }
   }
 
@@ -135,18 +155,24 @@ export function activate(context: vscode.ExtensionContext): void {
       await refreshing;
     } finally {
       refreshing = undefined;
+      nextRefreshAt = Date.now() + refreshInterval;
+      if (!disposed) countdown();
     }
   }
 
   function schedule(): void {
     if (timer) clearInterval(timer);
     timer = undefined;
-    if (!tree.visible || disposed) return;
+    if (disposed) return;
     const raw = config().get<number>('refreshSeconds', 5);
     const seconds = Number.isFinite(raw) ? Math.max(2, Math.min(300, raw)) : 5;
+    refreshInterval = seconds * 1000;
+    nextRefreshAt = Date.now() + refreshInterval;
+    countdown();
     timer = setInterval(() => {
-      void refresh();
-    }, seconds * 1000);
+      countdown();
+      if (Date.now() >= nextRefreshAt) void refresh();
+    }, 1000);
   }
 
   async function invalidate(): Promise<void> {

@@ -4,11 +4,11 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import test from 'node:test';
-import { actOnKernel } from '../actions';
-import { JupyterClient, normalizeServerUrl, parseMetadata } from '../jupyter';
-import { type KernelMetadata, type KernelProcess, mergeKernels } from '../model';
-import { kernelIdFromArgs, LinuxCollector, parseStat } from '../proc';
+import { test } from 'vitest';
+import { actOnKernel } from '../src/actions';
+import { JupyterClient, normalizeServerUrl, parseMetadata } from '../src/jupyter';
+import { type KernelMetadata, type KernelProcess, mergeKernels } from '../src/model';
+import { kernelLaunchFromArgs, LinuxCollector, parseStat } from '../src/proc';
 
 const uid = process.geteuid?.() ?? 1000;
 const kernel: KernelProcess = {
@@ -26,8 +26,6 @@ const metadata: KernelMetadata = {
   id: 'abc-123',
   name: 'python3',
   executionState: 'idle',
-  connections: 1,
-  lastActivity: '2026-10-03T00:00:00Z',
   notebookPaths: ['analysis.ipynb'],
 };
 
@@ -42,17 +40,18 @@ function statText(ticks = 25, start = '100', state = 'S'): string {
 
 test('accept explicit kernels with separated and equals connection flags', () => {
   assert.equal(
-    kernelIdFromArgs([
+    kernelLaunchFromArgs([
       '/env/bin/python3.11',
       '-m',
       'ipykernel_launcher',
       '-f',
       '/run/kernel-abc-123.json',
-    ]),
+    ])?.kernelId,
     'abc-123',
   );
   assert.equal(
-    kernelIdFromArgs(['python', 'ipykernel_launcher.py', '--f=/run/kernel-abc-123.json']),
+    kernelLaunchFromArgs(['python', 'ipykernel_launcher.py', '--f=/run/kernel-abc-123.json'])
+      ?.kernelId,
     'abc-123',
   );
 });
@@ -67,7 +66,7 @@ test('exclude Python jobs, servers, misleading arguments, and missing connection
     ['node', '-m', 'ipykernel_launcher', '-f', 'kernel-abc.json'],
     ['python', '-m', 'ipykernel_launcher', '-f', 'connection.json'],
   ])
-    assert.equal(kernelIdFromArgs(args), undefined);
+    assert.equal(kernelLaunchFromArgs(args), undefined);
 });
 
 test('parse process names containing spaces and parentheses without shifting fields', () => {
@@ -87,7 +86,7 @@ test('duplicate process or server IDs suppress ambiguous notebook mapping', () =
       (r) => !r.metadata,
     ),
   );
-  assert.equal(mergeKernels([kernel], [metadata, metadata])[0]?.metadata, undefined);
+  assert.equal(mergeKernels([kernel], [metadata, metadata, metadata])[0]?.metadata, undefined);
 });
 
 test('each lifecycle action signals the revalidated kernel, using a stub instead of real signals', async () => {
@@ -167,50 +166,6 @@ test('permission errors are surfaced instead of reporting a successful stop', as
   );
 });
 
-test('mapped stop uses the server shutdown callback after ownership revalidation', async () => {
-  const calls: string[] = [];
-  await actOnKernel(
-    kernel,
-    'stop',
-    async () => {
-      calls.push('revalidate');
-      return kernel;
-    },
-    () => assert.fail('server stop must not signal'),
-    uid,
-    async (id) => {
-      calls.push(id);
-    },
-  );
-  assert.deepEqual(calls, ['revalidate', kernel.kernelId]);
-});
-
-test('server shutdown cannot bypass ownership checks or silently fall back to signals', async () => {
-  await assert.rejects(
-    actOnKernel(
-      kernel,
-      'stop',
-      async () => ({ ...kernel, uid: uid + 1 }),
-      () => assert.fail('must not signal'),
-      uid,
-      async () => assert.fail('must not shutdown'),
-    ),
-  );
-  await assert.rejects(
-    actOnKernel(
-      kernel,
-      'stop',
-      async () => kernel,
-      () => assert.fail('must not fall back'),
-      uid,
-      async () => {
-        throw new Error('HTTP 403');
-      },
-    ),
-    /HTTP 403/,
-  );
-});
-
 test('Jupyter shutdown sends DELETE with token headers and accepts only confirmed shutdown', async () => {
   const request: typeof fetch = async (url, options) => {
     assert.equal(String(url), 'https://example.com/user/alice/api/kernels/abc-123');
@@ -251,13 +206,16 @@ async function fixture(): Promise<{ root: string; dir: string }> {
 test('collector discovers owned kernels, samples CPU, and resets samples on PID reuse', async (t) => {
   if (process.platform !== 'linux') return t.skip('Linux collector');
   const { root, dir } = await fixture();
-  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rm(root, { recursive: true, force: true }));
   const collector = new LinuxCollector(root, uid, 100);
+  const before = Date.now();
   const first = await collector.snapshot();
   assert.equal(first.length, 1);
   assert.equal(first[0]?.cpuPercent, undefined);
   assert.equal(first[0]?.rssBytes, 2048 * 1024);
   assert.equal(first[0]?.ageSeconds, 999);
+  const created = first[0]?.createdAtEpochMs ?? 0;
+  assert.ok(created >= before - 999000 && created <= Date.now() - 999000);
   await fs.writeFile(path.join(dir, 'stat'), statText(30));
   assert(((await collector.snapshot())[0]?.cpuPercent ?? 0) > 0);
   await fs.writeFile(path.join(dir, 'stat'), statText(1, '999'));
@@ -267,7 +225,7 @@ test('collector discovers owned kernels, samples CPU, and resets samples on PID 
 test('collector excludes other directory owners before reading process contents', async (t) => {
   if (process.platform !== 'linux') return t.skip('Linux collector');
   const { root, dir } = await fixture();
-  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rm(root, { recursive: true, force: true }));
   await fs.writeFile(path.join(dir, 'stat'), 'invalid stat would throw if read');
   assert.deepEqual(await new LinuxCollector(root, uid + 1, 100).snapshot(), []);
 });
@@ -275,7 +233,7 @@ test('collector excludes other directory owners before reading process contents'
 test('collector excludes mismatched effective UID, zombies, non-kernel jobs, and vanished PIDs', async (t) => {
   if (process.platform !== 'linux') return t.skip('Linux collector');
   const { root, dir } = await fixture();
-  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rm(root, { recursive: true, force: true }));
   const collector = new LinuxCollector(root, uid, 100);
   await fs.writeFile(
     path.join(dir, 'status'),
@@ -312,6 +270,16 @@ test('normalize server base paths and reject URLs carrying credentials or insecu
   }
 });
 
+test('server metadata only requires fields used by the sidebar and kernel mapping', () => {
+  const kernels = [{ id: metadata.id, name: metadata.name, execution_state: 'idle' }];
+  const sessions = [{ type: 'notebook', path: 'analysis.ipynb', kernel: { id: metadata.id } }];
+  assert.deepEqual(parseMetadata(kernels, sessions), [metadata]);
+  assert.deepEqual(
+    parseMetadata([{ ...kernels[0], connections: 'unused', last_activity: null }], sessions),
+    [metadata],
+  );
+});
+
 test('map all notebook sessions sharing a kernel, deduplicate paths, and ignore consoles', () => {
   const kernels = [
     {
@@ -319,7 +287,7 @@ test('map all notebook sessions sharing a kernel, deduplicate paths, and ignore 
       name: 'python3',
       execution_state: 'busy',
       connections: 2,
-      last_activity: metadata.lastActivity,
+      last_activity: '2026-10-03T00:00:00Z',
     },
   ];
   const sessions = [
@@ -330,7 +298,7 @@ test('map all notebook sessions sharing a kernel, deduplicate paths, and ignore 
   ];
   assert.deepEqual(parseMetadata(kernels, sessions)[0]?.notebookPaths, ['a.ipynb', 'b.ipynb']);
   assert.throws(() => parseMetadata({}, sessions));
-  assert.throws(() => parseMetadata([{ ...kernels[0], connections: -1 }], sessions));
+  assert.throws(() => parseMetadata([{ ...kernels[0], execution_state: null }], sessions));
 });
 
 async function listen(server: Server): Promise<string> {
@@ -353,7 +321,7 @@ test('HTTP client preserves JupyterHub base path and uses token headers instead 
                 name: metadata.name,
                 execution_state: 'idle',
                 connections: 1,
-                last_activity: metadata.lastActivity,
+                last_activity: '2026-10-03T00:00:00Z',
               },
             ]
           : [{ type: 'notebook', path: 'analysis.ipynb', kernel: { id: metadata.id } }],
@@ -361,7 +329,7 @@ test('HTTP client preserves JupyterHub base path and uses token headers instead 
     );
   });
   const url = await listen(server);
-  t.after(() => {
+  t.onTestFinished(() => {
     server.closeAllConnections();
     return new Promise<void>((resolve) => server.close(() => resolve()));
   });

@@ -67,6 +67,7 @@ export class EditorTracker {
     getKernel: (uri: string) => Promise<EditorKernel | undefined>,
     timeoutMs = 1500,
   ): Promise<KernelRow[]> {
+    const processes = new Map(rows.map((row) => [row.process.pid, row.process]));
     const associations = new Map<number, { paths: Set<string>; name: string; status: string }>();
     const opened = new Set(notebooks.map((n) => n.uri));
     for (const uri of this.cache.keys()) if (!opened.has(uri)) this.cache.delete(uri);
@@ -78,26 +79,20 @@ export class EditorTracker {
           const kernel = await getKernel(notebook.uri);
           if (kernel?.language !== 'python' || controller.signal.aborted) return;
           const cached = this.cache.get(notebook.uri);
-          let p =
-            cached?.handle === kernel.handle
-              ? rows.find(
-                  (r) =>
-                    r.process.pid === cached.pid &&
-                    r.process.startTicks === cached.startTicks &&
-                    r.process.connectionFile === cached.connectionFile,
-                )?.process
-              : undefined;
+          let p = cached?.handle === kernel.handle ? processes.get(cached.pid) : undefined;
+          if (
+            p &&
+            (p.startTicks !== cached?.startTicks || p.connectionFile !== cached?.connectionFile)
+          )
+            p = undefined;
           if (!p) {
             this.cache.delete(notebook.uri);
             // Avoid queuing diagnostics behind busy/stuck computation or starting a kernel.
             if (kernel.status !== 'idle') return;
             const identity = await kernel.identity(controller.signal);
             if (!identity || controller.signal.aborted) return;
-            p = rows.find(
-              (r) =>
-                r.process.pid === identity.pid &&
-                r.process.connectionFile === identity.connectionFile,
-            )?.process;
+            p = processes.get(identity.pid);
+            if (p?.connectionFile !== identity.connectionFile) p = undefined;
             if (!p) return; // Reject remote kernels and identities outside the verified owned process list.
             this.cache.set(notebook.uri, {
               handle: kernel.handle,
@@ -133,24 +128,19 @@ export class EditorTracker {
     return rows.map((row) => {
       const match = associations.get(row.process.pid);
       if (!match) return row;
-      if (row.metadata)
-        return {
-          ...row,
-          currentWindow: true,
-          metadata: {
-            ...row.metadata,
-            notebookPaths: [...new Set([...row.metadata.notebookPaths, ...match.paths])],
-          },
-        };
+      const metadata = row.metadata ?? {
+        id: row.process.kernelId,
+        name: match.name,
+        executionState: match.status,
+        notebookPaths: [],
+        source: 'editor' as const,
+      };
       return {
         ...row,
         currentWindow: true,
         metadata: {
-          id: row.process.kernelId,
-          name: match.name,
-          executionState: match.status,
-          notebookPaths: [...match.paths],
-          source: 'editor' as const,
+          ...metadata,
+          notebookPaths: [...new Set([...metadata.notebookPaths, ...match.paths])],
         },
       };
     });

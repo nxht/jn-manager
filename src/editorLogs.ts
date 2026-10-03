@@ -89,7 +89,11 @@ export function notebookLaunches(
     ) {
       const file = /(?:^|\s)(?:--f=|-f\s+|--f\s+)(?:"([^"]+)"|(\S+))/.exec(line);
       const value = file?.[1] ?? file?.[2];
-      if (value) active[0]?.connections.push(expandHome(value, home));
+      const launch = active[0];
+      if (value && launch) {
+        launch.connections.push(expandHome(value, home));
+        launch.time = new Date(`${date}T${line.split(' ')[0]}Z`).getTime() - offset;
+      }
     }
     if (line.includes('[info] Kernel successfully started')) {
       const launch = active.shift();
@@ -117,21 +121,25 @@ export function applyLaunches(
     if (row.metadata?.notebookPaths.length) return row;
     const p = row.process;
     const start = p.createdAtEpochMs ?? now - p.ageSeconds * 1000;
+    // Client log clocks can differ from the Linux host; require one exact path
+    // within a bounded minute, consistent with log-session clock validation.
     const matches = launches.filter(
-      (l) => l.connectionFile === p.connectionFile && Math.abs(l.time - start) <= 10000,
+      (l) => l.connectionFile === p.connectionFile && Math.abs(l.time - start) < 60000,
     );
-    const names = [...new Set(matches.map((l) => l.notebook))];
-    if (names.length !== 1 || !names[0]) return row;
+    const match = matches.length === 1 ? matches[0] : undefined;
+    if (!match) return row;
     return {
       ...row,
-      currentWindow: currentHost !== undefined && matches.every((l) => l.host === currentHost),
-      metadata: {
-        id: p.kernelId,
-        name: 'Python',
-        executionState: 'unknown',
-        notebookPaths: names,
-        source: 'editor-log' as const,
-      },
+      currentWindow: row.currentWindow || (currentHost !== undefined && match.host === currentHost),
+      metadata: row.metadata
+        ? { ...row.metadata, notebookPaths: [match.notebook] }
+        : {
+            id: p.kernelId,
+            name: 'Python',
+            executionState: 'unknown',
+            notebookPaths: [match.notebook],
+            source: 'editor-log' as const,
+          },
     };
   });
 }

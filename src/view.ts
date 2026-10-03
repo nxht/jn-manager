@@ -9,7 +9,15 @@ import {
   type Severity,
 } from './highlights';
 import type { KernelRow } from './model';
-import { type Detail, formatBytes, kernelDetails, kernelText, kernelTitle } from './presentation';
+import {
+  type Detail,
+  formatBytes,
+  formatKernelMemory,
+  formatUptime,
+  kernelDetails,
+  kernelText,
+  kernelTitle,
+} from './presentation';
 
 export class KernelItem extends vscode.TreeItem {
   constructor(
@@ -20,14 +28,14 @@ export class KernelItem extends vscode.TreeItem {
     const p = row.process;
     this.id = `${p.pid}:${p.startTicks}`;
     this.contextValue = 'ownedKernel';
-    const cpu = p.cpuPercent === undefined ? '—' : `${p.cpuPercent.toFixed(1)}%`;
-    this.description = `${cpu} CPU · ${formatBytes(p.rssBytes)} RAM`;
+    const cpu = p.cpuPercent === undefined ? '' : `${p.cpuPercent.toFixed(1)}% · `;
+    this.description = `${cpu}${formatBytes(p.rssBytes)} · ${formatUptime(p.ageSeconds)}`;
     this.tooltip = kernelDetails(row)
       .map((d) => `${d.label}: ${d.value}`)
       .join('\n');
     this.iconPath = new vscode.ThemeIcon(
       row.metadata?.executionState === 'busy' ? 'sync' : 'notebook',
-      severityColor(severity),
+      severityColor(severity) ?? new vscode.ThemeColor('symbolIcon.classForeground'),
     );
     this.resourceUri = highlightUri(row, 'kernel', severity);
   }
@@ -39,7 +47,8 @@ export class DetailItem extends vscode.TreeItem {
     row: KernelRow,
     severity?: Severity,
   ) {
-    super(`${detail.label}: ${detail.value}`, vscode.TreeItemCollapsibleState.None);
+    super(detail.label, vscode.TreeItemCollapsibleState.None);
+    this.description = detail.value;
     this.contextValue = 'kernelDetail';
     this.tooltip = detail.value;
     this.command = { command: 'jnManager.copy', title: 'Copy Value', arguments: [this] };
@@ -48,13 +57,16 @@ export class DetailItem extends vscode.TreeItem {
       Notebook: 'notebook',
       Kernel: 'symbol-method',
       PID: 'symbol-number',
-      CPU: 'circuit-board',
-      RAM: 'database',
-      Uptime: 'watch',
+      CPU: 'chip',
+      RAM: 'circuit-board',
+      Uptime: 'clock',
       Interpreter: 'terminal',
       Status: 'pulse',
     };
-    this.iconPath = new vscode.ThemeIcon(icons[detail.label] ?? 'info', severityColor(severity));
+    this.iconPath = new vscode.ThemeIcon(
+      icons[detail.label] ?? 'info',
+      severityColor(severity) ?? new vscode.ThemeColor('symbolIcon.propertyForeground'),
+    );
   }
 }
 
@@ -63,13 +75,15 @@ export class GroupItem extends vscode.TreeItem {
     super(group.label, vscode.TreeItemCollapsibleState.Expanded);
     this.id = group.id;
     this.contextValue = 'kernelGroup';
-    this.description = `${group.rows.length} ${group.rows.length === 1 ? 'kernel' : 'kernels'}`;
+    this.description = `Total ${formatKernelMemory(group.rows.map((row) => row.process))}`;
+    this.tooltip = `${group.rows.length} ${group.rows.length === 1 ? 'kernel' : 'kernels'} · ${this.description}`;
     this.iconPath = new vscode.ThemeIcon(
       group.id === 'current-window'
         ? 'window'
         : group.id.startsWith('server:')
           ? 'server'
           : 'notebook',
+      new vscode.ThemeColor('symbolIcon.classForeground'),
     );
   }
 }

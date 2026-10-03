@@ -6,7 +6,7 @@
 - Use Biome for TypeScript/JSON formatting and linting. Run `pnpm format` when editing code and `pnpm check` before finishing.
 - Validate behavior changes with `pnpm test`; build the extension with `pnpm package` when changing its runtime or manifest.
 - Keep the extension in TypeScript and use standard VS Code APIs where possible.
-- Do not automatically bump `package.json` version for changes. Packaging derives the release version from an exact `vX.Y.Z` or `X.Y.Z` Git tag on HEAD, falling back to the manifest version. Never create or push release tags unless explicitly requested.
+- Do not automatically bump `package.json` version for changes. Packaging derives the release version from an exact `vX.Y.Z` or `X.Y.Z` Git tag on HEAD and fails without one. The manifest version is a development placeholder. Never create or push release tags unless explicitly requested.
 - Use fixtures and mocks for lifecycle tests. Never interrupt, stop or kill the user's running kernels to validate a change. Live discovery checks must remain read-only.
 - Distinguish automated tests and read-only discovery checks from manual verification in VS Code/Cursor. Keep README.md and PLAN.md aligned with behavior changes and the packaged version.
 

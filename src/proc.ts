@@ -42,10 +42,6 @@ export function kernelLaunchFromArgs(
   return;
 }
 
-export function kernelIdFromArgs(args: string[]): string | undefined {
-  return kernelLaunchFromArgs(args)?.kernelId;
-}
-
 export function parseStat(raw: string): { state: string; cpuTicks: number; startTicks: string } {
   // The process name may contain spaces and parentheses: split after its last ')'.
   const end = raw.lastIndexOf(')');
@@ -89,6 +85,7 @@ export class LinuxCollector {
     pid: number,
     ticks: number,
     uptime: number,
+    bootEpochMs = Date.now() - uptime * 1000,
   ): Promise<KernelProcess | undefined> {
     if (this.uid === undefined || !Number.isSafeInteger(pid) || pid <= 1 || pid === process.pid)
       return;
@@ -100,6 +97,8 @@ export class LinuxCollector {
       const status = await fs.readFile(path.join(dir, 'status'), 'utf8');
       const ids = /^Uid:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/m.exec(status);
       if (!ids || ids.slice(1).some((id) => Number(id) !== this.uid)) return;
+      const stat = parseStat(await fs.readFile(path.join(dir, 'stat'), 'utf8'));
+      if (stat.state === 'Z' || stat.state === 'X') return;
       const args = (await fs.readFile(path.join(dir, 'cmdline'), 'utf8'))
         .split('\0')
         .filter(Boolean);
@@ -107,15 +106,17 @@ export class LinuxCollector {
       if (!launch) return;
       const cwd = await fs.readlink(path.join(dir, 'cwd'));
       const connectionFile = path.resolve(cwd, launch.connectionFile);
-      const raw = await fs.readFile(path.join(dir, 'stat'), 'utf8');
-      const stat = parseStat(raw);
-      if (stat.state === 'Z' || stat.state === 'X') return;
       const rss = /^VmRSS:\s+(\d+)\s+kB/m.exec(status);
       if (!rss) return;
       const executable = await fs.readlink(path.join(dir, 'exe'));
       // Reject PID reuse during collection as well as immediately before an action.
       const again = parseStat(await fs.readFile(path.join(dir, 'stat'), 'utf8'));
-      if (again.startTicks !== stat.startTicks || (await fs.stat(dir)).uid !== this.uid) return;
+      if (
+        again.startTicks !== stat.startTicks ||
+        ['Z', 'X'].includes(again.state) ||
+        (await fs.stat(dir)).uid !== this.uid
+      )
+        return;
       return {
         pid,
         uid: this.uid,
@@ -126,7 +127,7 @@ export class LinuxCollector {
         ...stat,
         rssBytes: Number(rss[1]) * 1024,
         ageSeconds: Math.max(0, uptime - Number(stat.startTicks) / ticks),
-        createdAtEpochMs: owner.ctimeMs,
+        createdAtEpochMs: bootEpochMs + (Number(stat.startTicks) / ticks) * 1000,
       };
     } catch (error) {
       if (transient(error)) return;
@@ -153,13 +154,16 @@ export class LinuxCollector {
       (await fs.readFile(path.join(this.root, 'uptime'), 'utf8')).split(' ')[0],
     );
     if (!Number.isFinite(uptime)) throw new Error('Cannot read host uptime');
+    const bootEpochMs = Date.now() - uptime * 1000;
     const entries = (await fs.readdir(this.root)).filter((n) => /^\d+$/.test(n));
     const output: KernelProcess[] = [];
     const next = new Map<number, { startTicks: string; cpuTicks: number; time: number }>();
     // Bound file I/O rather than reading every process concurrently on large shared servers.
     for (let start = 0; start < entries.length; start += 24) {
       const batch = await Promise.all(
-        entries.slice(start, start + 24).map((n) => this.readProcess(Number(n), ticks, uptime)),
+        entries
+          .slice(start, start + 24)
+          .map((n) => this.readProcess(Number(n), ticks, uptime, bootEpochMs)),
       );
       for (const p of batch) {
         if (!p) continue;

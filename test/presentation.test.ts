@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import { readKernelIdentity } from '../editor';
-import type { KernelRow } from '../model';
-import { kernelDetails, kernelText, kernelTitle } from '../presentation';
+import { test } from 'vitest';
+import { readKernelIdentity } from '../src/editor';
+import type { KernelRow } from '../src/model';
+import { kernelDetails, kernelText, kernelTitle, memoryStatus } from '../src/presentation';
 
 const row: KernelRow = {
   process: {
@@ -92,9 +92,19 @@ test('copyable details retain full notebook and virtual-environment paths despit
 test('compact details omit explanatory prose and unavailable metadata', () => {
   const text = kernelText({ ...row, metadata: undefined });
   assert.match(text, /CPU: 3.2%/);
-  assert.match(text, /RAM: 80.0 MiB/);
+  assert.match(text, /RAM: 84 MB/);
   assert.doesNotMatch(
     text,
     /one core|UID|Unavailable|Connections|mapping|age|Linux state|v3-very-long/,
   );
+});
+
+test('memory status totals processes across windows, including shared and unmapped kernels', () => {
+  const shared = { ...row, metadata: { ...row.metadata, notebookPaths: ['a.ipynb', 'b.ipynb'] } };
+  const unmapped = { process: { ...row.process, pid: 34567, rssBytes: 1024 ** 3 } };
+  const summary = memoryStatus([shared.process, unmapped.process]);
+  assert.equal(summary.text, '$(notebook) 1158 MB');
+  assert.match(summary.tooltip, /2 kernel processes/);
+  assert.match(summary.tooltip, /including hidden groups/);
+  assert.equal(memoryStatus([]).text, '$(notebook) 0 MB');
 });
