@@ -2,7 +2,7 @@
   "name": "jupyter-notebook-manager",
   "displayName": "Jupyter Notebook Manager",
   "description": "Inspect and stop your own Jupyter kernels on Linux and Remote SSH hosts.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "packageManager": "pnpm@11.14.0",
   "publisher": "nothlng",
   "license": "MIT",
