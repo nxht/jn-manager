@@ -1,3 +1,4 @@
 allowBuilds:
   '@vscode/vsce-sign': false
+  # Required transitively by Vitest/Vite; extension builds use only TypeScript.
   esbuild: true

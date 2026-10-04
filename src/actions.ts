@@ -1,4 +1,4 @@
-import type { KernelProcess } from './model';
+import type { KernelProcess } from './model.js';
 
 export type KernelAction = 'interrupt' | 'stop' | 'forceKill';
 const signals: Record<KernelAction, NodeJS.Signals> = {

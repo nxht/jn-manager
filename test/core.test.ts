@@ -5,10 +5,10 @@ import type { AddressInfo } from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'vitest';
-import { actOnKernel } from '../src/actions';
-import { JupyterClient, normalizeServerUrl, parseMetadata } from '../src/jupyter';
-import { type KernelMetadata, type KernelProcess, mergeKernels } from '../src/model';
-import { kernelLaunchFromArgs, LinuxCollector, parseStat } from '../src/proc';
+import { actOnKernel } from '../src/actions.js';
+import { JupyterClient, normalizeServerUrl, parseMetadata } from '../src/jupyter.js';
+import { type KernelMetadata, type KernelProcess, mergeKernels } from '../src/model.js';
+import { kernelLaunchFromArgs, LinuxCollector, parseStat } from '../src/proc.js';
 
 const uid = process.geteuid?.() ?? 1000;
 const kernel: KernelProcess = {

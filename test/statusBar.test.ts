@@ -1,17 +1,17 @@
 import assert from 'node:assert/strict';
 import { test, vi } from 'vitest';
 import type * as vscode from 'vscode';
-import { RuntimeDiscovery } from '../src/discovery';
-import { EditorLogDiscovery } from '../src/editorLogs';
-import type { KernelProcess, KernelRow } from '../src/model';
-import { LinuxCollector } from '../src/proc';
+import { RuntimeDiscovery } from '../src/discovery.js';
+import { EditorLogDiscovery } from '../src/editorLogs.js';
+import type { KernelProcess, KernelRow } from '../src/model.js';
+import { LinuxCollector } from '../src/proc.js';
 
 test('status memory refreshes with the sidebar hidden, ignores filters and clears on failure', async (t) => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
   t.onTestFinished(() => {
     vi.useRealTimers();
     vi.doUnmock('vscode');
-    vi.doUnmock('../src/view');
+    vi.doUnmock('../src/view.js');
   });
   const disposable = { dispose() {} };
   const subscriptions: { dispose(): void }[] = [];
@@ -67,7 +67,7 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
     },
   };
   vi.doMock('vscode', () => api);
-  vi.doMock('../src/view', () => ({
+  vi.doMock('../src/view.js', () => ({
     KernelView: View,
     KernelItem: class {},
     highlightDecorations: {},
@@ -108,7 +108,7 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
   vi.spyOn(EditorLogDiscovery.prototype, 'enrich').mockImplementation(
     async (rows: KernelRow[]) => rows,
   );
-  const { activate } = await import('../src/extension');
+  const { activate } = await import('../src/extension.js');
   activate({
     subscriptions,
     logUri: { fsPath: '/logs/session/exthost1/extension' },

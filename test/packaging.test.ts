@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'vitest';
-import { packageVersion, taggedVersion } from '../src/packaging';
+import { packageVersion, taggedVersion } from '../src/packaging.js';
 
 test('use an exact stable release tag and normalize its optional v prefix', () => {
   assert.equal(taggedVersion(['v1.2.3', 'notes']), '1.2.3');

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { readKernelIdentity } from '../src/editor';
-import type { KernelRow } from '../src/model';
-import { kernelDetails, kernelText, kernelTitle, memoryStatus } from '../src/presentation';
+import { readKernelIdentity } from '../src/editor.js';
+import type { KernelRow } from '../src/model.js';
+import { kernelDetails, kernelText, kernelTitle, memoryStatus } from '../src/presentation.js';
 
 const row: KernelRow = {
   process: {
@@ -105,6 +105,5 @@ test('memory status totals processes across windows, including shared and unmapp
   const summary = memoryStatus([shared.process, unmapped.process]);
   assert.equal(summary.text, '$(notebook) 1158 MB');
   assert.match(summary.tooltip, /2 kernel processes/);
-  assert.match(summary.tooltip, /including hidden groups/);
   assert.equal(memoryStatus([]).text, '$(notebook) 0 MB');
 });

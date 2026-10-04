@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { promisify } from 'node:util';
-import type { KernelProcess } from './model';
+import type { KernelProcess } from './model.js';
 
 const runFile = promisify(execFile);
 

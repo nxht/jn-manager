@@ -1,14 +1,14 @@
 import { cpus, totalmem } from 'node:os';
 import * as vscode from 'vscode';
-import { groupKernels, type KernelGroup } from './grouping';
+import { groupKernels, type KernelGroup } from './grouping.js';
 import {
   defaultHighlights,
   type HighlightSettings,
   highestSeverity,
   resourceHighlights,
   type Severity,
-} from './highlights';
-import type { KernelRow } from './model';
+} from './highlights.js';
+import type { KernelRow } from './model.js';
 import {
   type Detail,
   formatBytes,
@@ -17,7 +17,7 @@ import {
   kernelDetails,
   kernelText,
   kernelTitle,
-} from './presentation';
+} from './presentation.js';
 
 export class KernelItem extends vscode.TreeItem {
   constructor(
@@ -35,7 +35,6 @@ export class KernelItem extends vscode.TreeItem {
       .join('\n');
     this.iconPath = new vscode.ThemeIcon(
       row.metadata?.executionState === 'busy' ? 'sync' : 'notebook',
-      severityColor(severity) ?? new vscode.ThemeColor('symbolIcon.classForeground'),
     );
     this.resourceUri = highlightUri(row, 'kernel', severity);
   }
@@ -63,10 +62,7 @@ export class DetailItem extends vscode.TreeItem {
       Interpreter: 'terminal',
       Status: 'pulse',
     };
-    this.iconPath = new vscode.ThemeIcon(
-      icons[detail.label] ?? 'info',
-      severityColor(severity) ?? new vscode.ThemeColor('symbolIcon.propertyForeground'),
-    );
+    this.iconPath = new vscode.ThemeIcon(icons[detail.label] ?? 'info');
   }
 }
 
@@ -83,7 +79,6 @@ export class GroupItem extends vscode.TreeItem {
         : group.id.startsWith('server:')
           ? 'server'
           : 'notebook',
-      new vscode.ThemeColor('symbolIcon.classForeground'),
     );
   }
 }

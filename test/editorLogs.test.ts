@@ -9,10 +9,10 @@ import {
   editorHostDirectory,
   logSessionOffset,
   notebookLaunches,
-} from '../src/editorLogs';
-import { groupKernels } from '../src/grouping';
-import type { KernelRow } from '../src/model';
-import { formatUptime, kernelDetails } from '../src/presentation';
+} from '../src/editorLogs.js';
+import { groupKernels } from '../src/grouping.js';
+import type { KernelRow } from '../src/model.js';
+import { formatUptime, kernelDetails } from '../src/presentation.js';
 
 const time = Date.parse('2026-10-03T09:35:31.454Z');
 const row: KernelRow = {

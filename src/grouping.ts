@@ -1,4 +1,4 @@
-import type { KernelRow } from './model';
+import type { KernelRow } from './model.js';
 
 export interface KernelGroup {
   id: string;
@@ -25,8 +25,8 @@ function groupIdentity(row: KernelRow): Pick<KernelGroup, 'id' | 'label'> {
     row.metadata?.source === 'editor-log' ||
     row.process.kernelId.startsWith('v3')
   )
-    return { id: 'editor', label: 'Other VS Code / Cursor kernels' };
-  return { id: 'other', label: 'Other kernels' };
+    return { id: 'editor', label: 'Other Kernels' };
+  return { id: 'other', label: 'Unclassified Kernels' };
 }
 
 export function visibleKernels(rows: KernelRow[], settings: VisibilitySettings): KernelRow[] {

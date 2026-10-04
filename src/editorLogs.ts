@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import { homedir } from 'node:os';
 import * as path from 'node:path';
-import type { KernelRow } from './model';
+import type { KernelRow } from './model.js';
 
 export function editorHostDirectory(logPath: string): string | undefined {
   let dir = logPath;

@@ -16,10 +16,12 @@ The status bar totals RSS across all discovered owned kernel processes, independ
 
 Compact sidebar layout: CPU → MB → uptime kernel summaries, separate detail labels/values, `Total n MB` group totals and an `mm:ss` refresh countdown in the header. Copy actions and full-path tooltips are preserved.
 
-Sidebar polish: clock uptime icon, theme-colored group/detail icons, and colored light/dark SVG lifecycle actions. Launch matching uses process start ticks rather than proc-directory timestamps and allows less than one minute of client/host clock skew with unique exact connection-path evidence.
+Sidebar polish: clock uptime icon and native theme icons for groups, details and lifecycle actions. Launch matching uses process start ticks rather than proc-directory timestamps and allows less than one minute of client/host clock skew with unique exact connection-path evidence.
 
 CPU detail icon: `chip`, selected by the user. RAM uses `circuit-board` for the first trial; usage-style alternatives are being compared.
 
 Tests live in `test/` outside runtime source. Vitest runs TypeScript tests with native spies, module mocks and fake timers; `pnpm test` also type-checks the tests. Runtime compilation excludes tests, and packaging keeps test tooling out of the VSIX.
 
-Native ESM: manifest uses `type: module` and VS Code 1.100+; source/tooling use ESM, including URL-based packaging entry detection. esbuild emits a single runtime bundle with `vscode` external; TypeScript retains strict type-checking. Only the runtime bundle is shipped, with source maps available locally.
+Native ESM: manifest uses `type: module` and VS Code 1.100+; source/tooling use ESM, including URL-based packaging entry detection. TypeScript 7 checks and emits native ESM modules directly using NodeNext resolution and explicit `.js` imports. Runtime modules are shipped; tests and packaging tooling are excluded, with source maps available locally. No bundler is needed.
+
+Sidebar icons: native VS Code icons throughout, including the activity bar; no custom icon colors or SVG assets. Threshold text highlighting remains available. Other editor kernels use the concise **Other Kernels** label; the separate fallback is **Unclassified Kernels**. Packaging uses the current `dist/` layout and still requires an exact release tag.

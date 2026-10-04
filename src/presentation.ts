@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import type { KernelProcess, KernelRow } from './model';
+import type { KernelProcess, KernelRow } from './model.js';
 
 export interface Detail {
   label: string;
@@ -34,7 +34,7 @@ export function memoryStatus(processes: KernelProcess[]): { text: string; toolti
   const total = formatKernelMemory(processes);
   return {
     text: `$(notebook) ${total}`,
-    tooltip: `${total} across ${processes.length} kernel processes.\nSum of process RSS for all owned kernels, including hidden groups. Shared kernels count once. Worker processes and GPU memory are excluded.`,
+    tooltip: `${total} across ${processes.length} kernel processes.`,
   };
 }
 

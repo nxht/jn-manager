@@ -5,10 +5,10 @@ import type { AddressInfo } from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'vitest';
-import { localServerUrl, RuntimeDiscovery, runtimeDirectories } from '../src/discovery';
-import { type EditorKernel, EditorTracker, readKernelIdentity } from '../src/editor';
-import type { KernelProcess, KernelRow } from '../src/model';
-import { kernelLaunchFromArgs } from '../src/proc';
+import { localServerUrl, RuntimeDiscovery, runtimeDirectories } from '../src/discovery.js';
+import { type EditorKernel, EditorTracker, readKernelIdentity } from '../src/editor.js';
+import type { KernelProcess, KernelRow } from '../src/model.js';
+import { kernelLaunchFromArgs } from '../src/proc.js';
 
 const uid = process.geteuid?.() ?? 1000;
 const p: KernelProcess = {

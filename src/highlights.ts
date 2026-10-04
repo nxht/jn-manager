@@ -1,4 +1,4 @@
-import type { KernelProcess } from './model';
+import type { KernelProcess } from './model.js';
 
 export type Severity = 'warning' | 'critical';
 export interface HighlightSettings {

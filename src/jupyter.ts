@@ -1,4 +1,4 @@
-import type { KernelMetadata } from './model';
+import type { KernelMetadata } from './model.js';
 
 export function normalizeServerUrl(raw: string): string {
   const url = new URL(raw);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { groupKernels, visibleKernels } from '../src/grouping';
-import type { KernelRow } from '../src/model';
+import { groupKernels, visibleKernels } from '../src/grouping.js';
+import type { KernelRow } from '../src/model.js';
 
 const base: KernelRow = {
   process: {

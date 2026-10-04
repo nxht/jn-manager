@@ -8,7 +8,7 @@ Monitor and manage your Python Jupyter kernels in VS Code 1.100+ or a compatible
 2. Open **Jupyter Notebook Manager** using the notebook icon in the activity bar.
 3. Expand a kernel to see CPU, RAM, process uptime, PID, notebook paths and interpreter, with separate labels and values.
 
-Kernels from **Current window** appear first, followed by Jupyter servers and other editor kernels. Each group shows `Total n MB`; kernel rows show CPU, RAM in decimal MB, then process uptime. When a notebook name is unavailable, the kernel is shown by PID. CPU uses a chip icon; RAM uses a circuit-board icon. CPU appears after the second sample; the view refreshes every five seconds, with an `mm:ss` countdown in the header before the refresh controls.
+Kernels from **Current window** appear first, followed by Jupyter servers, **Other Kernels** from other editor windows, and **Unclassified Kernels**. All icons use the editor’s native appearance. Each group shows `Total n MB`; kernel rows show CPU, RAM in decimal MB, then process uptime. When a notebook name is unavailable, the kernel is shown by PID. CPU uses a chip icon; RAM uses a circuit-board icon. CPU appears after the second sample; the view refreshes every five seconds, with an `mm:ss` countdown in the header before the refresh controls.
 
 The status bar shows total RAM across all your discovered kernel processes on the Linux host, including kernels hidden by sidebar settings. Shared kernels count once. It updates every five seconds even with the sidebar closed; click it to open the manager.
 

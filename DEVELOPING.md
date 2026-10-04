@@ -10,11 +10,11 @@ pnpm test
 pnpm package
 ```
 
-Open this folder in VS Code and press F5 to run the extension development host. The project uses native ESM (`type: module`) and requires VS Code 1.100+ (including the corresponding API types). `pnpm compile` type-checks source, tests and configuration, then esbuild bundles the extension and packaging entry points into `build/dist/`; packaging creates `build/jupyter-notebook-manager-<version>.vsix`. Generated output is ignored by Git. The extension has no production dependencies. In `pnpm-workspace.yaml`, esbuild’s binary-install script is enabled and the unused signing-tool build script is disabled. The VSIX uses an explicit file allowlist: only the single ESM runtime bundle, manifest, README, license and sidebar/action icons are shipped. The `vscode` module stays external because the editor supplies it. Source maps remain available locally for debugging.
+Open this folder in VS Code and press F5 to run the extension development host. The project uses native ESM (`type: module`) and requires VS Code 1.100+ (including the corresponding API types). `pnpm compile` uses TypeScript 7 to check and emit native ESM files into `dist/`; packaging creates `build/jupyter-notebook-manager-<version>.vsix`. Generated output is ignored by Git. The extension has no production dependencies. The unused signing-tool build script is disabled in `pnpm-workspace.yaml`; esbuild binary setup remains enabled only for Vitest/Vite’s transitive dependency. The VSIX uses an explicit file allowlist: only the runtime ESM modules, manifest, README and license are shipped; tests, packaging tooling and source maps are excluded. NodeNext module resolution checks native ESM imports, including explicit `.js` suffixes. The editor supplies the `vscode` module. Source maps remain available locally for debugging.
 
 Version changes are tied to releases rather than ordinary edits. `pnpm package` uses an exact stable Git tag on HEAD (`vX.Y.Z` or `X.Y.Z`), including annotated tags. Without a matching tag, a Git checkout, or any commits, packaging fails. Older ancestor tags are not used; conflicting release versions on HEAD fail packaging. The packaged manifest and VSIX filename use the resolved version; the source `package.json` and Git tags are never modified by packaging. Create release tags explicitly when ready to release, then run `pnpm package` from that tagged commit. The checked-in manifest version is `0.0.0`, a development placeholder; it is never used as a release version.
 
-Tests live in the top-level `test/` directory. `pnpm test` type-checks the source and tests, then runs Vitest directly against TypeScript; tests are not compiled into `build/dist/`. Use `pnpm exec vitest` for watch mode. Tests use temporary process/runtime fixtures, mock editor APIs, injected signal callbacks and a mock HTTP server. They verify both discovery modes, Python launch flags, idle-only diagnostics, busy-kernel caching, PID reuse, ownership isolation, credential handling and lifecycle routing. Tests never signal a real process. Mock-server shutdown tests only stop mock kernels.
+Tests live in the top-level `test/` directory. `pnpm test` type-checks the source and tests, then runs Vitest directly against TypeScript; tests are not compiled into `dist/`. Use `pnpm exec vitest` for watch mode. Tests use temporary process/runtime fixtures, mock editor APIs, injected signal callbacks and a mock HTTP server. They verify both discovery modes, Python launch flags, idle-only diagnostics, busy-kernel caching, PID reuse, ownership isolation, credential handling and lifecycle routing. Tests never signal a real process. Mock-server shutdown tests only stop mock kernels.
 
 ## Discovery and notebook identity
 
@@ -33,9 +33,9 @@ Both settings default to `true` and take effect on refresh after changing Settin
 - `jnManager.includeExternalServers`: show locally discovered JupyterLab/Notebook server groups outside this editor window.
 - `jnManager.includeOtherWindows`: show other VS Code/Cursor kernels, including editor kernels whose window cannot be verified.
 
-Verified **Current window** kernels always remain visible, including kernels attached to a Jupyter server. Server grouping takes precedence for remaining kernels, so server-backed kernels follow `includeExternalServers`. Unclassified **Other kernels** remain visible because their origin is unknown. These settings filter the sidebar and its count after notebook identity discovery; they preserve server routing for lifecycle actions. External servers here means automatically discovered loopback servers on the Linux workspace host, not remote HTTP servers without owned local processes.
+Verified **Current window** kernels always remain visible, including kernels attached to a Jupyter server. Server grouping takes precedence for remaining kernels, so server-backed kernels follow `includeExternalServers`. **Unclassified Kernels** remain visible because their origin is unknown. These settings filter the sidebar and its count after notebook identity discovery; they preserve server routing for lifecycle actions. External servers here means automatically discovered loopback servers on the Linux workspace host, not remote HTTP servers without owned local processes.
 
-CPU, RAM and uptime detail text and icons use yellow for warnings and red for critical values. The kernel label also takes the highest severity. CPU thresholds use the percentage of **all host logical CPUs** (a process using 800% CPU on eight CPUs reaches 100% of the host). RAM thresholds use process RSS as a percentage of total host RAM. Uptime means process lifetime.
+CPU, RAM and uptime detail text uses yellow for warnings and red for critical values. The kernel label also takes the highest severity. CPU thresholds use the percentage of **all host logical CPUs** (a process using 800% CPU on eight CPUs reaches 100% of the host). RAM thresholds use process RSS as a percentage of total host RAM. Uptime means process lifetime.
 
 | Setting (`jnManager.highlights.` prefix) | Default | Meaning |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ CPU, RAM and uptime detail text and icons use yellow for warnings and red for cr
 | `memoryWarningPercent` / `memoryCriticalPercent` | `80` / `90` | Above this percentage of total RAM |
 | `uptimeWarningHours` / `uptimeCriticalHours` | `24` / `48` | Above this many hours |
 
-Change these in Settings under **Jupyter Notebook Manager**. Critical takes precedence; keep critical thresholds at or above warning thresholds. Customize the colors with `jnManager.warningForeground` and `jnManager.criticalForeground` in `workbench.colorCustomizations`. Text decorations follow VS Code's `explorer.decorations.colors` setting; colored icons remain visible when text decorations are disabled. Selected text follows the editor theme's selection styling.
+Change these in Settings under **Jupyter Notebook Manager**. Critical takes precedence; keep critical thresholds at or above warning thresholds. Customize the colors with `jnManager.warningForeground` and `jnManager.criticalForeground` in `workbench.colorCustomizations`. Text decorations follow VS Code's `explorer.decorations.colors` setting. All icons use native theme icons with no assigned colors. Selected text follows the editor theme's selection styling.
 
 The Refresh button retains its normal appearance while discovery runs in the background. Repeated refresh requests share the current discovery operation.
 
@@ -66,7 +66,7 @@ Every action asks for confirmation identifying the affected notebook/kernel, PID
 - Node's portable process signal API has a small check-to-signal race despite start-time revalidation; atomic protection would require Linux pidfd support.
 - Current-window API mapping, grouping and lifecycle routing are covered by fixture tests. Full installation and UI behavior in VS Code/Cursor still need manual verification.
 
-Manual verification in VS Code/Cursor should cover activity-bar placement, refresh behavior, copy actions, visibility settings, threshold colors and selected-row styling. Automated fixture tests and read-only discovery checks do not establish that the installed UI works. Never interrupt, stop or kill a user's running kernel to validate a change.
+Manual verification in VS Code/Cursor should cover activity-bar placement, refresh behavior, copy actions, visibility settings, threshold text colors and selected-row styling. Automated fixture tests and read-only discovery checks do not establish that the installed UI works. Never interrupt, stop or kill a user's running kernel to validate a change.
 
 ## Before publishing
 
@@ -80,4 +80,6 @@ The status bar shows the sum of RSS from the owned process snapshot before sideb
 
 The compact native sidebar separates detail labels from values using tree item descriptions. CPU, RAM, uptime and PID appear before notebook/interpreter details. CPU is omitted until a sample is available. Memory uses rounded decimal MB. Group descriptions show `Total n MB`, and the sidebar header shows an `mm:ss` countdown before the native action toolbar; the status bar still totals all discovered kernels. Full values remain available through tooltips and copy actions. Native tree descriptions use editor-controlled spacing rather than fixed table columns.
 
-The one-second countdown does not collect processes each second: collection follows the configured refresh interval, which restarts when discovery completes. Lifecycle SVGs retain their own colors on selected rows. CPU uses the `chip` icon; RAM uses `circuit-board` for the first trial. Notebook launch matching allows less than one minute of client/host clock skew, still requiring a unique completed launch with the exact connection path.
+The one-second countdown does not collect processes each second: collection follows the configured refresh interval, which restarts when discovery completes. CPU uses the `chip` icon; RAM uses `circuit-board` for the first trial. Notebook launch matching allows less than one minute of client/host clock skew, still requiring a unique completed launch with the exact connection path.
+
+All tree, action, view and activity-bar icons use native VS Code icons, with no custom icon colors or SVG assets. Other editor windows are labeled **Other Kernels**; the separate fallback is **Unclassified Kernels**.

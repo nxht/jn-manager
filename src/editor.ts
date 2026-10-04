@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import type { KernelRow } from './model';
+import type { KernelRow } from './model.js';
 
 export interface NotebookResource {
   uri: string;

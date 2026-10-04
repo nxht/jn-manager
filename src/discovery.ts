@@ -1,9 +1,9 @@
 import * as fs from 'node:fs/promises';
 import { homedir } from 'node:os';
 import * as path from 'node:path';
-import { JupyterClient, normalizeServerUrl } from './jupyter';
-import { type KernelProcess, type KernelRow, mergeKernels } from './model';
-import { parseStat } from './proc';
+import { JupyterClient, normalizeServerUrl } from './jupyter.js';
+import { type KernelProcess, type KernelRow, mergeKernels } from './model.js';
+import { parseStat } from './proc.js';
 
 export interface DiscoveredServer {
   id: string;

@@ -30,7 +30,7 @@ export function packageVersion(root: string): string {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const root = fileURLToPath(new URL('../..', import.meta.url));
+  const root = fileURLToPath(new URL('..', import.meta.url));
   const version = packageVersion(root);
   console.log(`Packaging version ${version} from the exact release tag on HEAD.`);
   execFileSync(

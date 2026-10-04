@@ -1,14 +1,14 @@
 import { hostname } from 'node:os';
 import * as vscode from 'vscode';
-import { actOnKernel, assertSameKernel, type KernelAction } from './actions';
-import { RuntimeDiscovery } from './discovery';
-import { type EditorKernel, EditorTracker, identityCode, readKernelIdentity } from './editor';
-import { EditorLogDiscovery, editorHostDirectory, editorLogRoots } from './editorLogs';
-import { visibleKernels } from './grouping';
-import { defaultHighlights, type HighlightSettings } from './highlights';
-import { memoryStatus } from './presentation';
-import { LinuxCollector } from './proc';
-import { copyText, highlightDecorations, KernelItem, KernelView } from './view';
+import { actOnKernel, assertSameKernel, type KernelAction } from './actions.js';
+import { RuntimeDiscovery } from './discovery.js';
+import { type EditorKernel, EditorTracker, identityCode, readKernelIdentity } from './editor.js';
+import { EditorLogDiscovery, editorHostDirectory, editorLogRoots } from './editorLogs.js';
+import { visibleKernels } from './grouping.js';
+import { defaultHighlights, type HighlightSettings } from './highlights.js';
+import { memoryStatus } from './presentation.js';
+import { LinuxCollector } from './proc.js';
+import { copyText, highlightDecorations, KernelItem, KernelView } from './view.js';
 
 interface JupyterExports {
   kernels?: {
@@ -191,15 +191,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     const p = item.row.process;
     const label = action === 'interrupt' ? 'Interrupt' : action === 'stop' ? 'Stop' : 'Force Kill';
-    const effect =
-      action === 'forceKill'
-        ? 'Unsaved work will be lost. A supervising server may restart it.'
-        : action === 'stop'
-          ? `This ends the kernel and clears its in-memory state.${item.row.serverId ? '' : ' A supervising server may restart it.'}`
-          : 'This requests cancellation of the current computation.';
     const affected = item.row.metadata?.notebookPaths.join(', ') || `Kernel ${p.kernelId}`;
     const choice = await vscode.window.showWarningMessage(
-      `${label} ${affected} (PID ${p.pid}) on ${hostname()}? ${effect}`,
+      `${label} ${affected}?\nPID: ${p.pid}\nHost: ${hostname()}`,
       { modal: true },
       label,
     );

@@ -6,6 +6,23 @@
   "packageManager": "pnpm@11.14.0",
   "publisher": "jn-manager",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nxht/jn-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nxht/jn-manager/issues"
+  },
+  "homepage": "https://github.com/nxht/jn-manager#readme",
+  "keywords": [
+    "jupyter",
+    "notebook",
+    "kernel",
+    "python",
+    "linux",
+    "remote"
+  ],
+  "type": "module",
   "engines": {
     "vscode": "^1.100.0"
   },
@@ -15,9 +32,8 @@
   "extensionKind": [
     "workspace"
   ],
-  "main": "./build/dist/extension.js",
+  "main": "./dist/extension.js",
   "activationEvents": [
-    "onView:jnManager.kernels",
     "onStartupFinished"
   ],
   "capabilities": {
@@ -29,20 +45,21 @@
     }
   },
   "scripts": {
-    "compile": "pnpm typecheck && node esbuild.mjs",
+    "compile": "tsc -p .",
     "test": "pnpm typecheck && vitest run",
-    "package": "pnpm compile && node build/dist/packaging.js",
     "format": "biome format --write .",
     "check": "biome check .",
-    "typecheck": "tsc -p tsconfig.test.json"
+    "typecheck": "tsc -p tsconfig.test.json",
+    "package": "pnpm compile && node dist/packaging.js"
   },
+  "dependencies": {},
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
     "@types/node": "^22.20.5",
     "@types/vscode": "1.100.0",
     "@vscode/vsce": "^4.0.0",
-    "esbuild": "^0.28.2",
-    "typescript": "^5.7.0",
+    "ovsx": "^1.2.0",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.3"
   },
   "contributes": {
@@ -60,18 +77,12 @@
       {
         "command": "jnManager.interrupt",
         "title": "Jupyter Notebook Manager: Interrupt Kernel",
-        "icon": {
-          "light": "resources/interrupt-light.svg",
-          "dark": "resources/interrupt-dark.svg"
-        }
+        "icon": "$(debug-pause)"
       },
       {
         "command": "jnManager.stop",
         "title": "Jupyter Notebook Manager: Stop Kernel",
-        "icon": {
-          "light": "resources/stop-light.svg",
-          "dark": "resources/stop-dark.svg"
-        }
+        "icon": "$(debug-stop)"
       },
       {
         "command": "jnManager.forceKill",
@@ -84,7 +95,7 @@
         {
           "id": "jnManager.kernels",
           "name": "Jupyter Notebook Manager",
-          "icon": "resources/notebook.svg",
+          "icon": "$(notebook)",
           "when": "isWorkspaceTrusted"
         }
       ]
@@ -223,14 +234,14 @@
         {
           "id": "jnManager",
           "title": "Jupyter Notebook Manager",
-          "icon": "resources/notebook.svg"
+          "icon": "$(notebook)"
         }
       ]
     },
     "colors": [
       {
         "id": "jnManager.warningForeground",
-        "description": "Warning text and icons in Jupyter Notebook Manager.",
+        "description": "Warning text in Jupyter Notebook Manager.",
         "defaults": {
           "dark": "#cca700",
           "light": "#9c6500",
@@ -240,7 +251,7 @@
       },
       {
         "id": "jnManager.criticalForeground",
-        "description": "Critical text and icons in Jupyter Notebook Manager.",
+        "description": "Critical text in Jupyter Notebook Manager.",
         "defaults": {
           "dark": "#f14c4c",
           "light": "#c72e0f",
@@ -249,22 +260,5 @@
         }
       }
     ]
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/nxht/jn-manager.git"
-  },
-  "bugs": {
-    "url": "https://github.com/nxht/jn-manager/issues"
-  },
-  "homepage": "https://github.com/nxht/jn-manager#readme",
-  "keywords": [
-    "jupyter",
-    "notebook",
-    "kernel",
-    "python",
-    "linux",
-    "remote"
-  ],
-  "type": "module"
+  }
 }
