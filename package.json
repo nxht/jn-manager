@@ -4,7 +4,7 @@
   "description": "Inspect and stop your own Jupyter kernels on Linux and Remote SSH hosts.",
   "version": "0.0.1",
   "packageManager": "pnpm@11.14.0",
-  "publisher": "jn-manager",
+  "publisher": "nothlng",
   "license": "MIT",
   "repository": {
     "type": "git",
