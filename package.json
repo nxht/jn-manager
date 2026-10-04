@@ -6,6 +6,7 @@
   "packageManager": "pnpm@11.14.0",
   "publisher": "nothlng",
   "license": "MIT",
+  "icon": "resources/jupyter.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/nxht/jn-manager.git"
@@ -50,6 +51,8 @@
     "format": "biome format --write .",
     "check": "biome check .",
     "typecheck": "tsc -p tsconfig.test.json",
+    "prepackage": "pnpm compile",
+    "package": "vsce package --out build/",
     "vscode:prepublish": "pnpm compile"
   },
   "dependencies": {},

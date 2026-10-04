@@ -14,3 +14,5 @@
 !dist/presentation.js
 !dist/proc.js
 !dist/view.js
+!resources/jupyter.png
+!resources/JUPYTER-LICENSE.txt
