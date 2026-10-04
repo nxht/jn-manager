@@ -1,55 +1,73 @@
 # Jupyter Notebook Manager
 
-Monitor and manage your Python Jupyter kernels in VS Code 1.100+ or a compatible Cursor version. Works on Linux, including Remote SSH, WSL and dev containers, with editor kernels and local JupyterLab/Notebook servers. No server URL or token setup is needed.
+Monitor and manage your Python Jupyter kernels in VS Code 1.100+ or compatible Cursor. Supports Linux, Remote SSH, WSL and dev containers. No server setup needed.
 
-## Getting started
+## Quick start
 
-1. Install the VSIX using **Extensions → Install from VSIX…**. For Remote SSH, install it on the SSH host.
-2. Open **Jupyter Notebook Manager** using the notebook icon in the activity bar.
-3. Expand a kernel to see CPU, RAM, process uptime, PID, notebook paths and interpreter, with separate labels and values.
+1. **Extensions → Install from VSIX…** (install on the remote host when using Remote SSH).
+2. Click the **notebook icon** in the activity bar.
+3. Expand a kernel to see its details.
 
-Kernels from **Current window** appear first, followed by Jupyter servers, **Other Kernels** from other editor windows, and **Unclassified Kernels**. All icons use the editor’s native appearance. Each group shows `Total n MB`; kernel rows show CPU, RAM in decimal MB, then process uptime. When a notebook name is unavailable, the kernel is shown by PID. CPU uses a chip icon; RAM uses a circuit-board icon. CPU appears after the second sample; the view refreshes every five seconds, with an `mm:ss` countdown in the header before the refresh controls.
+| Control | Use |
+| --- | --- |
+| Countdown / Refresh | Next update / update now |
+| Status bar | Total kernel RAM; click to open the sidebar |
+| Detail / Copy button | Copy the value |
 
-The status bar shows total RAM across all your discovered kernel processes on the Linux host, including kernels hidden by sidebar settings. Shared kernels count once. It updates every five seconds even with the sidebar closed; click it to open the manager.
-
-Click a detail or its copy button to copy the value. **Ctrl+C** / **Cmd+C** copies the selected detail or kernel's information.
+Groups: **Current window → Jupyter servers → Other Kernels → Unclassified Kernels**.
 
 ## Kernel actions
 
-Use a kernel's buttons or context menu:
+| Action | Effect |
+| --- | --- |
+| Interrupt | Request cancellation of the current computation |
+| Stop | End the kernel; clear its in-memory state |
+| Force Kill | End immediately, without cleanup |
 
-- **Interrupt** requests cancellation of the current computation.
-- **Stop** ends the kernel and clears its in-memory state.
-- **Force Kill** ends it immediately, without cleanup.
-
-Each action asks for confirmation. A supervising server may restart a stopped or force-killed kernel.
+Use kernel buttons or the context menu. Actions require confirmation.
 
 ## Settings
 
-Search for **Jupyter Notebook Manager** in Settings.
+Search **Jupyter Notebook Manager** in Settings.
 
-| Setting | Default |
-| --- | --- |
-| `jnManager.refreshSeconds` | 5 seconds |
-| `jnManager.includeExternalServers` | Show local Jupyter server kernels |
-| `jnManager.includeOtherWindows` | Show other VS Code/Cursor kernels |
-| `jnManager.highlights.enabled` | Enable yellow/red highlights |
-
-Verified current-window kernels always stay visible. Kernels with an unknown origin also remain visible. External servers means servers on the Linux workspace host.
-
-Highlight thresholds are customizable under `jnManager.highlights.*`:
-
-| Metric | Yellow | Red |
+| Setting | Description | Default |
 | --- | --- | --- |
-| CPU, across all host CPUs | ≥80% | ≥100% |
-| RAM, as a share of total host RAM | >80% | >90% |
-| Process uptime | >24 hours | >48 hours |
+| `jnManager.refreshSeconds` | Refresh interval (seconds) | `5` |
+| `jnManager.includeExternalServers` | Show other local server kernels | `true` |
+| `jnManager.includeOtherWindows` | Show other editor kernels | `true` |
+| `jnManager.highlights.enabled` | Enable yellow warnings and red critical alerts | `true` |
 
-Use `cpuWarningPercent` / `cpuCriticalPercent`, `memoryWarningPercent` / `memoryCriticalPercent`, and `uptimeWarningHours` / `uptimeCriticalHours` to adjust them. Colors can be customized with `jnManager.warningForeground` and `jnManager.criticalForeground` in `workbench.colorCustomizations`.
+Current-window and unclassified kernels always remain visible.
 
-## Notes
+### Highlights
 
-- Only kernels owned by your Linux account are shown. Ownership and process identity are rechecked before kernel actions. Remote servers without local kernel processes are not supported.
-- CPU and RAM describe the kernel process; worker processes and GPU memory are excluded. The displayed CPU percentage uses 100% per core. Uptime is process lifetime, not cell execution time.
-- Jupyter may ask for kernel-access permission to identify notebooks. Declining still allows resource monitoring; some notebook names may be unavailable.
-- Live notebook and server details take precedence over launch logs. Log-based names describe a single verified launch and may miss later renames or attachments.
+Prefix: `jnManager.highlights.`. Thresholds use **all host CPUs** and **total host RAM**.
+
+| Setting | Description | Default |
+| --- | --- | --- |
+| `cpuWarningPercent` | 🟡 CPU ≥ threshold (%) | `80` |
+| `cpuCriticalPercent` | 🔴 CPU ≥ threshold (%) | `100` |
+| `memoryWarningPercent` | 🟡 RAM > threshold (%) | `80` |
+| `memoryCriticalPercent` | 🔴 RAM > threshold (%) | `90` |
+| `totalMemoryWarningPercent` | 🟡 Status-bar total kernel RAM > threshold (%) | `80` |
+| `totalMemoryCriticalPercent` | 🔴 Status-bar total kernel RAM > threshold (%) | `90` |
+| `uptimeWarningHours` | 🟡 Process uptime > threshold (hours) | `24` |
+| `uptimeCriticalHours` | 🔴 Process uptime > threshold (hours) | `48` |
+
+| Display | Behavior |
+| --- | --- |
+| Icons | Detail: metric severity; kernel: highest severity |
+| Status bar | Total kernel RAM, including hidden groups; warning/error icon and background |
+| Text | Follows `explorer.decorations.colors` and selection styling |
+| Uptime warning = `0` | Warns for positive process uptime |
+| Custom colors | Set `jnManager.warningForeground` / `jnManager.criticalForeground` in `workbench.colorCustomizations` |
+
+## Measurement limits
+
+| Metric | Measures |
+| --- | --- |
+| CPU | Kernel process usage; 100% per core; appears after the second sample |
+| RAM | Kernel process RSS; excludes worker processes and GPU memory |
+| Uptime | Process lifetime, not cell execution time |
+
+Only your Linux account’s kernels appear. Remote HTTP servers are unsupported. Jupyter permission is optional for monitoring.
