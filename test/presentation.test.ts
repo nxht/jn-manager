@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { readKernelIdentity } from '../src/editor.js';
+import { defaultHighlights } from '../src/highlights.js';
 import type { KernelRow } from '../src/model.js';
 import { kernelDetails, kernelText, kernelTitle, memoryStatus } from '../src/presentation.js';
 
@@ -106,4 +107,44 @@ test('memory status totals processes across windows, including shared and unmapp
   assert.equal(summary.text, '$(notebook) 1158 MB');
   assert.match(summary.tooltip, /2 kernel processes/);
   assert.equal(memoryStatus([]).text, '$(notebook) 0 MB');
+});
+
+test('total memory alerts use summed RSS and exclusive host-memory thresholds', () => {
+  const process = { ...row.process, rssBytes: 400 };
+  const second = { ...process, pid: 34567 };
+  assert.equal(memoryStatus([process, second], 1000).severity, undefined);
+  assert.equal(memoryStatus([process, { ...second, rssBytes: 401 }], 1000).severity, 'warning');
+  assert.equal(memoryStatus([{ ...process, rssBytes: 900 }], 1000).severity, 'warning');
+  assert.equal(memoryStatus([{ ...process, rssBytes: 901 }], 1000).severity, 'critical');
+  assert.equal(
+    memoryStatus([], 1000, { ...defaultHighlights, totalMemoryWarningPercent: 0 }).severity,
+    undefined,
+  );
+  assert.equal(
+    memoryStatus([process], 1000, { ...defaultHighlights, totalMemoryWarningPercent: 0 }).severity,
+    'warning',
+  );
+  assert.equal(
+    memoryStatus([process], 1000, {
+      ...defaultHighlights,
+      totalMemoryWarningPercent: 0,
+      totalMemoryCriticalPercent: 0,
+    }).severity,
+    'critical',
+  );
+  assert.equal(
+    memoryStatus([{ ...process, rssBytes: 999 }], 1000, { ...defaultHighlights, enabled: false })
+      .severity,
+    undefined,
+  );
+});
+
+test('missing or invalid host memory does not raise total memory alerts', () => {
+  const processes = [row.process];
+  for (const hostMemory of [undefined, 0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const summary = memoryStatus(processes, hostMemory);
+    assert.equal(summary.severity, undefined);
+    assert.match(summary.text, /^\$\(notebook\)/);
+    assert.doesNotMatch(summary.tooltip, /NaN|Infinity|host RAM|Warning|Critical/);
+  }
 });

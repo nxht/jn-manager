@@ -178,7 +178,7 @@
         "jnManager.highlights.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Highlight kernel resource usage and process uptime."
+          "description": "Highlight kernel resource usage, process uptime and status-bar total memory."
         },
         "jnManager.highlights.cpuWarningPercent": {
           "type": "number",
@@ -229,6 +229,20 @@
           "type": "boolean",
           "default": true,
           "description": "Show remaining VS Code/Cursor kernels not verified as belonging to the current window, including unmapped editor kernels. Kernels grouped under a Jupyter server follow includeExternalServers."
+        },
+        "jnManager.highlights.totalMemoryWarningPercent": {
+          "type": "number",
+          "default": 80,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Total kernel RAM warning threshold for the status bar, as a percentage of total host RAM (exclusive)."
+        },
+        "jnManager.highlights.totalMemoryCriticalPercent": {
+          "type": "number",
+          "default": 90,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Total kernel RAM critical threshold for the status bar, as a percentage of total host RAM (exclusive)."
         }
       }
     },

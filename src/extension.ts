@@ -1,4 +1,4 @@
-import { hostname } from 'node:os';
+import { hostname, totalmem } from 'node:os';
 import * as vscode from 'vscode';
 import { actOnKernel, assertSameKernel, type KernelAction } from './actions.js';
 import { RuntimeDiscovery } from './discovery.js';
@@ -108,7 +108,14 @@ export function activate(context: vscode.ExtensionContext): void {
     try {
       const processes = await collector.snapshot();
       if (!disposed && currentRevision === revision) {
-        const summary = memoryStatus(processes);
+        const summary = memoryStatus(processes, totalmem(), highlightSettings());
+        memory.backgroundColor = summary.severity
+          ? new vscode.ThemeColor(
+              summary.severity === 'critical'
+                ? 'statusBarItem.errorBackground'
+                : 'statusBarItem.warningBackground',
+            )
+          : undefined;
         memory.text = summary.text;
         memory.tooltip = `${summary.tooltip}\nHost: ${hostname()}\nClick to open Jupyter Notebook Manager.`;
         memory.show();
@@ -141,6 +148,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     } catch (error) {
       if (!disposed && currentRevision === revision) {
+        memory.backgroundColor = undefined;
         memory.hide();
         provider.update([], error instanceof Error ? error.message : 'Kernel discovery failed.');
       }

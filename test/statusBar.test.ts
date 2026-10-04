@@ -12,6 +12,7 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
     vi.useRealTimers();
     vi.doUnmock('vscode');
     vi.doUnmock('../src/view.js');
+    vi.doUnmock('node:os');
   });
   const disposable = { dispose() {} };
   const subscriptions: { dispose(): void }[] = [];
@@ -21,6 +22,7 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
     name: '',
     tooltip: '',
     command: '',
+    backgroundColor: undefined as { id: string } | undefined,
     show() {
       shown = true;
     },
@@ -31,6 +33,7 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
       shown = false;
     },
   };
+  const background = () => status.backgroundColor?.id;
   let visibilityChanged = () => {};
   const tree = {
     ...disposable,
@@ -48,7 +51,12 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
     }
     dispose() {}
   }
+  const settings: Record<string, unknown> = {};
+  let configurationChanged = (_event: { affectsConfiguration(section: string): boolean }) => {};
   const api = {
+    ThemeColor: class {
+      constructor(public id: string) {}
+    },
     StatusBarAlignment: { Right: 2 },
     window: {
       createTreeView: () => tree,
@@ -59,13 +67,21 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
     workspace: {
       notebookDocuments: [],
       getConfiguration: () => ({
-        get: (key: string, fallback: unknown) => (key === 'includeOtherWindows' ? false : fallback),
+        get: (key: string, fallback: unknown) =>
+          key === 'includeOtherWindows' ? false : (settings[key] ?? fallback),
       }),
       onDidOpenNotebookDocument: () => disposable,
       onDidCloseNotebookDocument: () => disposable,
-      onDidChangeConfiguration: () => disposable,
+      onDidChangeConfiguration: (callback: typeof configurationChanged) => {
+        configurationChanged = callback;
+        return disposable;
+      },
     },
   };
+  vi.doMock('node:os', async () => ({
+    ...(await vi.importActual<typeof import('node:os')>('node:os')),
+    totalmem: () => 1_000_000_000,
+  }));
   vi.doMock('vscode', () => api);
   vi.doMock('../src/view.js', () => ({
     KernelView: View,
@@ -75,6 +91,7 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
   let scans = 0;
   let fail = false;
   let bytes = 128 * 1024 ** 2;
+  let secondBytes = 0;
   const process = {
     pid: 123456,
     uid: 1000,
@@ -89,7 +106,12 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
   vi.spyOn(LinuxCollector.prototype, 'snapshot').mockImplementation(async () => {
     scans++;
     if (fail) throw new Error('Fixture collection failure');
-    return [{ ...process, rssBytes: bytes }];
+    return [
+      { ...process, rssBytes: bytes },
+      ...(secondBytes
+        ? [{ ...process, pid: 234567, kernelId: 'second', rssBytes: secondBytes }]
+        : []),
+    ];
   });
   const discovery = vi
     .spyOn(RuntimeDiscovery.prototype, 'enrich')
@@ -121,6 +143,7 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
   assert.equal(shown, true);
   assert.equal(status.text, '$(notebook) 134 MB');
   assert.equal(status.command, 'jnManager.kernels.focus');
+  assert.equal(background(), undefined);
   assert.equal(discovery.mock.calls.length, 0);
   assert.equal(tree.description, '00:05');
   vi.advanceTimersByTime(2000);
@@ -139,10 +162,54 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
   assert.equal(discovery.mock.calls.length, 1);
   assert.deepEqual(visibleRows, []);
   assert.equal(status.text, '$(notebook) 537 MB');
+  tree.visible = false;
+  visibilityChanged();
+  const refreshStatus = async () => {
+    vi.advanceTimersByTime(5000);
+    await settle();
+  };
+  bytes = 425_000_000;
+  secondBytes = 425_000_000;
+  await refreshStatus();
+  assert.equal(status.text, '$(warning) 850 MB');
+  assert.equal(background(), 'statusBarItem.warningBackground');
+  assert.match(status.tooltip, /2 kernel processes/);
+  assert.match(status.tooltip, /85.0% of host RAM/);
+  assert.match(status.tooltip, /Warning/);
+
+  secondBytes = 500_000_000;
+  await refreshStatus();
+  assert.equal(status.text, '$(error) 925 MB');
+  assert.equal(background(), 'statusBarItem.errorBackground');
+  assert.match(status.tooltip, /Critical/);
+
+  secondBytes = 0;
+  await refreshStatus();
+  assert.equal(status.text, '$(notebook) 425 MB');
+  assert.equal(background(), undefined);
+  assert.doesNotMatch(status.tooltip, /Warning|Critical/);
+
+  settings['highlights.totalMemoryWarningPercent'] = 0;
+  configurationChanged({ affectsConfiguration: () => true });
+  await settle();
+  assert.equal(status.text, '$(warning) 425 MB');
+  assert.equal(background(), 'statusBarItem.warningBackground');
+
+  settings['highlights.enabled'] = false;
+  configurationChanged({ affectsConfiguration: () => true });
+  await settle();
+  assert.equal(status.text, '$(notebook) 425 MB');
+  assert.equal(background(), undefined);
+
+  settings['highlights.enabled'] = true;
+  configurationChanged({ affectsConfiguration: () => true });
+  await settle();
+  assert.equal(background(), 'statusBarItem.warningBackground');
   fail = true;
   vi.advanceTimersByTime(5000);
   await settle();
   assert.equal(shown, false);
+  assert.equal(background(), undefined);
   for (const subscription of subscriptions) subscription.dispose();
   const lastScans = scans;
   vi.advanceTimersByTime(5000);

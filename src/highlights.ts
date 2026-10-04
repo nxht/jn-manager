@@ -7,6 +7,8 @@ export interface HighlightSettings {
   cpuCriticalPercent: number;
   memoryWarningPercent: number;
   memoryCriticalPercent: number;
+  totalMemoryWarningPercent: number;
+  totalMemoryCriticalPercent: number;
   uptimeWarningHours: number;
   uptimeCriticalHours: number;
 }
@@ -17,6 +19,8 @@ export const defaultHighlights: HighlightSettings = {
   cpuCriticalPercent: 100,
   memoryWarningPercent: 80,
   memoryCriticalPercent: 90,
+  totalMemoryWarningPercent: 80,
+  totalMemoryCriticalPercent: 90,
   uptimeWarningHours: 24,
   uptimeCriticalHours: 48,
 };
@@ -26,24 +30,38 @@ export interface HostResources {
   totalMemory: number;
 }
 
+function severity(
+  value: number | undefined,
+  warning: number,
+  critical: number,
+  inclusive = false,
+): Severity | undefined {
+  if (value === undefined || !Number.isFinite(value)) return;
+  const exceeds = (threshold: number) => (inclusive ? value >= threshold : value > threshold);
+  if (exceeds(critical)) return 'critical';
+  if (exceeds(warning)) return 'warning';
+  return;
+}
+
+export function totalMemoryHighlight(
+  bytes: number,
+  totalMemory: number,
+  settings: HighlightSettings,
+): Severity | undefined {
+  if (!settings.enabled || !Number.isFinite(totalMemory) || totalMemory <= 0) return;
+  return severity(
+    (bytes / totalMemory) * 100,
+    settings.totalMemoryWarningPercent,
+    settings.totalMemoryCriticalPercent,
+  );
+}
+
 export function resourceHighlights(
   process: KernelProcess,
   host: HostResources,
   settings: HighlightSettings,
 ): Partial<Record<'CPU' | 'RAM' | 'Uptime', Severity>> {
   if (!settings.enabled) return {};
-  const severity = (
-    value: number | undefined,
-    warning: number,
-    critical: number,
-    inclusive = false,
-  ): Severity | undefined => {
-    if (value === undefined || !Number.isFinite(value)) return;
-    const exceeds = (threshold: number) => (inclusive ? value >= threshold : value > threshold);
-    if (exceeds(critical)) return 'critical';
-    if (exceeds(warning)) return 'warning';
-    return;
-  };
   return {
     CPU: severity(
       host.cpuCount > 0 && process.cpuPercent !== undefined

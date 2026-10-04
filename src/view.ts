@@ -35,6 +35,7 @@ export class KernelItem extends vscode.TreeItem {
       .join('\n');
     this.iconPath = new vscode.ThemeIcon(
       row.metadata?.executionState === 'busy' ? 'sync' : 'notebook',
+      severityColor(severity),
     );
     this.resourceUri = highlightUri(row, 'kernel', severity);
   }
@@ -62,7 +63,7 @@ export class DetailItem extends vscode.TreeItem {
       Interpreter: 'terminal',
       Status: 'pulse',
     };
-    this.iconPath = new vscode.ThemeIcon(icons[detail.label] ?? 'info');
+    this.iconPath = new vscode.ThemeIcon(icons[detail.label] ?? 'info', severityColor(severity));
   }
 }
 

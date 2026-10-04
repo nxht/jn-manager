@@ -1,4 +1,10 @@
 import * as path from 'node:path';
+import {
+  defaultHighlights,
+  type HighlightSettings,
+  type Severity,
+  totalMemoryHighlight,
+} from './highlights.js';
 import type { KernelProcess, KernelRow } from './model.js';
 
 export interface Detail {
@@ -30,11 +36,25 @@ export function formatKernelMemory(processes: KernelProcess[]): string {
   return formatBytes(processes.reduce((bytes, process) => bytes + process.rssBytes, 0));
 }
 
-export function memoryStatus(processes: KernelProcess[]): { text: string; tooltip: string } {
-  const total = formatKernelMemory(processes);
+export function memoryStatus(
+  processes: KernelProcess[],
+  totalMemory?: number,
+  settings: HighlightSettings = defaultHighlights,
+): { text: string; tooltip: string; severity?: Severity } {
+  const bytes = processes.reduce((sum, process) => sum + process.rssBytes, 0);
+  const total = formatBytes(bytes);
+  const severity = totalMemoryHighlight(bytes, totalMemory ?? 0, settings);
+  // const percent =
+  //   totalMemory !== undefined && Number.isFinite(totalMemory) && totalMemory > 0
+  //     ? `\n${((bytes / totalMemory) * 100).toFixed(1)}% of host RAM.`
+  //     : '';
+  const alert = severity
+    ? `\n${severity === 'critical' ? 'Critical' : 'Warning'}: total kernel RAM.`
+    : '';
   return {
-    text: `$(notebook) ${total}`,
-    tooltip: `${total} across ${processes.length} kernel processes.`,
+    text: `$(${severity === 'critical' ? 'error' : severity === 'warning' ? 'warning' : 'notebook'}) ${total}`,
+    tooltip: `${total} across ${processes.length} kernel processes.${alert}`,
+    severity,
   };
 }
 

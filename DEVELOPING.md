@@ -1,85 +1,105 @@
-# Developing Jupyter Notebook Manager
+# Development
 
-Use Node.js 22.12+ and pnpm 11.14.0. Repository guidance is in `AGENTS.md`; Biome formats and checks TypeScript and JSON.
+## Setup
+
+| Tool | Requirement |
+| --- | --- |
+| Node.js | 22.12+ |
+| pnpm | 11.14.0 |
+| VS Code | 1.100+ |
+| Repository rules | [AGENTS.md](AGENTS.md) |
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm format
-pnpm check
-pnpm test
-pnpm package
 ```
 
-Open this folder in VS Code and press F5 to run the extension development host. The project uses native ESM (`type: module`) and requires VS Code 1.100+ (including the corresponding API types). `pnpm compile` uses TypeScript 7 to check and emit native ESM files into `dist/`; packaging creates `build/jupyter-notebook-manager-<version>.vsix`. Generated output is ignored by Git. The extension has no production dependencies. The unused signing-tool build script is disabled in `pnpm-workspace.yaml`; esbuild binary setup remains enabled only for Vitest/Vite’s transitive dependency. The VSIX uses an explicit file allowlist: only the runtime ESM modules, manifest, README, licenses and Marketplace PNG are shipped; tests, packaging tooling and source maps are excluded. NodeNext module resolution checks native ESM imports, including explicit `.js` suffixes. The editor supplies the `vscode` module. Source maps remain available locally for debugging.
+Open the workspace in VS Code and press **F5** to launch the extension development host.
 
-Version changes are tied to releases rather than ordinary edits. `pnpm package` uses the version in `package.json`, as requested. Set the intended release version before packaging. Packaging does not modify the manifest or create Git tags.
+## Commands
 
-Tests live in the top-level `test/` directory. `pnpm test` type-checks the source and tests, then runs Vitest directly against TypeScript; tests are not compiled into `dist/`. Use `pnpm exec vitest` for watch mode. Tests use temporary process/runtime fixtures, mock editor APIs, injected signal callbacks and a mock HTTP server. They verify both discovery modes, Python launch flags, idle-only diagnostics, busy-kernel caching, PID reuse, ownership isolation, credential handling and lifecycle routing. Tests never signal a real process. Mock-server shutdown tests only stop mock kernels.
+| Command | Purpose |
+| --- | --- |
+| `pnpm format` | Format TypeScript and JSON with Biome |
+| `pnpm check` | Check formatting and lint |
+| `pnpm test` | Type-check source/tests and run Vitest |
+| `pnpm exec vitest` | Run tests in watch mode |
+| `pnpm compile` | Compile native ESM into `dist/` |
+| `pnpm package` | Build a VSIX in `build/` |
 
-## Discovery and notebook identity
+Keep `pnpm-lock.yaml`. Do not bump the manifest version or create release tags for routine edits.
 
-**JupyterLab / Notebook:** The extension finds the current user's `jpserver-*.json` and `nbserver-*.json` runtime files. It searches the directories of running kernels' connection files as well as standard Jupyter/XDG locations. This works when an editor kernel and a Lab kernel use different virtual environments or runtime directories. Existing credentials are read from private, owned runtime files and held briefly in memory; they are never displayed, logged or requested from the user. Endpoints must be on loopback, and the server PID must be a live Jupyter process belonging to the same Unix account. Only exact kernel-ID joins to owned processes appear in the view.
+| Packaged | Excluded |
+| --- | --- |
+| Runtime modules, manifest, README, licenses, icon | Tests, source maps, development tooling |
 
-**VS Code / Cursor:** The supported Microsoft Jupyter extension API maps open notebooks to live kernels. For an idle Python kernel, a small diagnostic reads its PID and connection-file path, then matches both to the owned process list. The Jupyter API executes this without adding notebook cells or changing execution history/count. It does execute a short Python request, which may briefly affect kernel status. Jupyter may show its native kernel-access permission prompt once; denying access still leaves process monitoring and actions available. No connection-file contents are read for editor mapping.
+## Discovery
 
-Notebook associations are cached against kernel handle, PID, process start ticks and connection-file path. Busy kernels use a previously verified mapping. The extension does not queue diagnostics behind a busy kernel, start a kernel, read the editor's private credential database or guess notebook names from the focused file/working directory. Open notebooks sharing a kernel appear together.
-
-The Jupyter API sees only its own editor window. For kernels from another window, or unavailable API mappings, a read-only fallback checks this account's local Jupyter extension logs. A notebook is associated only when a single completed launch records the exact connection-file path and a matching process creation time. Overlapping or conflicting launch evidence is withheld. This also works while a kernel is busy. Logs are size bounded, owned files only, and never echoed. A log association identifies the notebook at launch; later renames or additional attachments in another window may be unavailable. Current-window API/session metadata takes precedence over launch logs.
-
-## Visibility and presentation
-
-Both settings default to `true` and take effect on refresh after changing Settings:
-
-- `jnManager.includeExternalServers`: show locally discovered JupyterLab/Notebook server groups outside this editor window.
-- `jnManager.includeOtherWindows`: show other VS Code/Cursor kernels, including editor kernels whose window cannot be verified.
-
-Verified **Current window** kernels always remain visible, including kernels attached to a Jupyter server. Server grouping takes precedence for remaining kernels, so server-backed kernels follow `includeExternalServers`. **Unclassified Kernels** remain visible because their origin is unknown. These settings filter the sidebar and its count after notebook identity discovery; they preserve server routing for lifecycle actions. External servers here means automatically discovered loopback servers on the Linux workspace host, not remote HTTP servers without owned local processes.
-
-CPU, RAM and uptime detail text uses yellow for warnings and red for critical values. The kernel label also takes the highest severity. CPU thresholds use the percentage of **all host logical CPUs** (a process using 800% CPU on eight CPUs reaches 100% of the host). RAM thresholds use process RSS as a percentage of total host RAM. Uptime means process lifetime.
-
-| Setting (`jnManager.highlights.` prefix) | Default | Meaning |
+| Source | Required evidence | Limits |
 | --- | --- | --- |
-| `enabled` | `true` | Enable resource highlights |
-| `cpuWarningPercent` / `cpuCriticalPercent` | `80` / `100` | At or above this percentage of all CPUs |
-| `memoryWarningPercent` / `memoryCriticalPercent` | `80` / `90` | Above this percentage of total RAM |
-| `uptimeWarningHours` / `uptimeCriticalHours` | `24` / `48` | Above this many hours |
+| Linux processes | Current account's live ipykernel process | Excludes other users, servers and ordinary Python jobs |
+| Jupyter server | Private owned runtime file, live owned server, loopback endpoint, exact kernel ID | Searches standard runtime locations and kernel connection directories; credentials stay private |
+| Current-window API | Exact PID and connection path | Bounded diagnostics on idle kernels only; never starts kernels or queues behind busy work |
+| Editor launch logs | One completed launch, exact connection path and matching process creation time | Owned, size-bounded logs; stale, overlapping or conflicting evidence rejected |
 
-Change these in Settings under **Jupyter Notebook Manager**. Critical takes precedence; keep critical thresholds at or above warning thresholds. Customize the colors with `jnManager.warningForeground` and `jnManager.criticalForeground` in `workbench.colorCustomizations`. Text decorations follow VS Code's `explorer.decorations.colors` setting. All icons use native theme icons with no assigned colors. Selected text follows the editor theme's selection styling.
+API mappings are cached by kernel handle, PID, start ticks and connection path. Live API/server metadata takes precedence over launch logs. Missing logs must not block monitoring. Never infer notebook identity from the working directory or focused notebook.
 
-The Refresh button retains its normal appearance while discovery runs in the background. Repeated refresh requests share the current discovery operation.
+## Sidebar
 
-## Lifecycle actions
+User settings, defaults and measurements are in the [README](README.md#settings).
 
-- **Interrupt:** Sends SIGINT after ownership/identity revalidation. Requests cancellation of the current computation.
-- **Stop:** For an automatically matched Jupyter server, revalidates the live server and kernel, then uses Jupyter's kernel shutdown API. For a raw/unmapped kernel, sends SIGTERM.
-- **Force Kill:** Sends SIGKILL explicitly, without allowing cleanup.
+| Group | Membership |
+| --- | --- |
+| Current window | Verified by this window's API or exact extension-host log location; always first |
+| Jupyter servers | Remaining server-backed kernels |
+| Other Kernels | Remaining editor kernels |
+| Unclassified Kernels | Unknown origin; always visible |
 
-Every action asks for confirmation identifying the affected notebook/kernel, PID and host. Process identity and ownership are rechecked after confirmation. Stop never silently escalates or falls back to process signals after an API failure. A signal being sent does not prove the process has exited. Supervising servers can restart kernels after SIGTERM/SIGKILL; the matched server shutdown route avoids that behavior. No action shuts down the entire Jupyter server.
+Current-window membership overrides display grouping while preserving server routing for shutdown.
 
-## Implementation limits and verification
+| Feature | Behavior |
+| --- | --- |
+| Resource alerts | Native detail icons carry metric severity; kernel icon carries highest severity |
+| Text decorations | Follow `explorer.decorations.colors` and editor selection styling |
+| Copy | Details stay in the tree; selection never opens a text document |
+| Status bar | Total owned-process RSS before visibility filters; shared kernels counted once |
+| Total RAM alerts | Separate `totalMemoryWarningPercent` / `totalMemoryCriticalPercent` thresholds; warning/error icon and native status-bar background; cleared below threshold or when highlights are disabled |
+| Hidden sidebar | Continue memory sampling; skip server metadata, editor diagnostics and launch logs |
+| Collection failure | Hide the status item |
+| Countdown | Update every second; collect only at the configured interval |
+| Refresh | Coalesce repeated requests; restart the interval after collection completes |
 
-- Linux only, with standard Python ipykernel module/script launches. Python `-X`, `-W`, unbuffered and common isolation/optimization flags are supported. Non-Python kernels and custom launch wrappers are not yet collected.
-- CPU uses process tick deltas: one CPU core = 100%, so multithreaded jobs may exceed 100%. RAM is kernel-process RSS; worker subprocesses and GPU memory are not included. Process age is not notebook execution duration.
-- Unix UID is the isolation boundary. People sharing an account share visibility and management privileges.
-- External remote HTTP servers without local kernel processes are outside this extension's current scope. Password-only servers, Unix-socket endpoints and inaccessible/private runtime locations may prevent Lab metadata discovery; owned processes remain manageable.
-- Unmapped kernels are not automatically labeled orphans.
-- Node's portable process signal API has a small check-to-signal race despite start-time revalidation; atomic protection would require Linux pidfd support.
-- Current-window API mapping, grouping and lifecycle routing are covered by fixture tests. Full installation and UI behavior in VS Code/Cursor still need manual verification.
+## Lifecycle
 
-Manual verification in VS Code/Cursor should cover activity-bar placement, refresh behavior, copy actions, visibility settings, threshold text colors and selected-row styling. Automated fixture tests and read-only discovery checks do not establish that the installed UI works. Never interrupt, stop or kill a user's running kernel to validate a change.
+Confirm the action, then recheck process identity and ownership.
 
-## Before publishing
+| Action | Route |
+| --- | --- |
+| Interrupt | SIGINT |
+| Stop: matched server kernel | Revalidated Jupyter kernel shutdown API |
+| Stop: raw/unmapped kernel | SIGTERM |
+| Force Kill | Explicit SIGKILL |
 
-Run the checks above from the final source state and inspect the packaged manifest and file list. Confirm the manifest version and access to the Marketplace publisher configured in `package.json`. Publish the already validated VSIX. Publisher access is a release-account requirement, not established by local packaging.
+Never escalate a failed stop, signal after an API shutdown failure, or shut down the whole server. Sending a signal does not prove exit; supervisors may restart the process. Portable signal handling retains a small identity-check-to-signal race.
 
-Perform the manual VS Code/Cursor verification described above using disposable fixture notebooks. Do not use running user kernels for lifecycle testing. Keep publishing credentials out of the repository and VSIX.
+## Verification
 
-The runtime keeps only metadata used by the sidebar and lifecycle actions. Discovery returns kernel rows directly; editor mappings use PID lookups, and HTTP authentication/redirect handling is shared by metadata reads and shutdown requests.
+| Check | Coverage |
+| --- | --- |
+| Automated tests | Process/runtime fixtures, mocked editor APIs, injected signals and mock HTTP servers |
+| Read-only discovery | Owned process and notebook mapping; no lifecycle actions |
+| Manual editor checks | Installation, sidebar layout, countdown, copy, filters and status-bar updates |
+| Manual highlight checks | Zero uptime threshold; total RAM status-bar alerts and clearing; warning/critical icons with Explorer colors disabled; selected-row styling |
+| Manual lifecycle checks | Disposable fixture notebooks only |
+| Package review | Manifest version, file allowlist and final VSIX |
 
-The status bar shows the sum of RSS from the owned process snapshot before sidebar filtering. Shared notebooks are counted once per kernel process. Monitoring activates after editor startup and continues at `jnManager.refreshSeconds` when the sidebar is hidden; hidden-sidebar refreshes skip server metadata, editor diagnostics and launch-log discovery. Failed collection hides the status item rather than retaining an outdated total. Manual verification should include startup, background updates, status-bar click navigation, zero kernels and visibility settings.
+Never interrupt, stop or kill a user's running kernel for validation. Automated tests do not establish installed UI behavior. Before publishing, complete checks, verify publisher access and publish the reviewed VSIX. Keep credentials out of the repository and package.
 
-The compact native sidebar separates detail labels from values using tree item descriptions. CPU, RAM, uptime and PID appear before notebook/interpreter details. CPU is omitted until a sample is available. Memory uses rounded decimal MB. Group descriptions show `Total n MB`, and the sidebar header shows an `mm:ss` countdown before the native action toolbar; the status bar still totals all discovered kernels. Full values remain available through tooltips and copy actions. Native tree descriptions use editor-controlled spacing rather than fixed table columns.
+## Limits
 
-The one-second countdown does not collect processes each second: collection follows the configured refresh interval, which restarts when discovery completes. CPU uses the `chip` icon; RAM uses `circuit-board` for the first trial. Notebook launch matching allows less than one minute of client/host clock skew, still requiring a unique completed launch with the exact connection path.
-
-All tree, action, view and activity-bar icons use native VS Code icons, with no custom icon colors or SVG assets. Other editor windows are labeled **Other Kernels**; the separate fallback is **Unclassified Kernels**.
+| Area | Limit |
+| --- | --- |
+| Kernels | Linux Python ipykernel launches; custom wrappers and non-Python kernels unsupported |
+| Isolation | Unix UID; users sharing an account share visibility and management access |
+| Servers | Local loopback only; inaccessible metadata may leave notebook names unavailable |
+| Measurements | Kernel process only; excludes worker RSS and GPU memory |
+| Unmapped kernels | Remain monitorable; never automatically labeled orphans |
