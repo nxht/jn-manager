@@ -1,38 +1,36 @@
 # Repository guidance
 
-## Tooling and validation
+## Workflow
 
-- Use pnpm for dependency installation and all project commands. Keep `pnpm-lock.yaml` committed; do not introduce npm or Yarn lockfiles.
-- Use Biome for TypeScript/JSON formatting and linting. Run `pnpm format` when editing code and `pnpm check` before finishing.
-- Validate behavior changes with `pnpm test`; build the extension with `pnpm package` when changing its runtime or manifest.
-- Keep the extension in TypeScript and use standard VS Code APIs where possible.
-- Do not automatically bump `package.json` version for changes. Packaging derives the release version from an exact `vX.Y.Z` or `X.Y.Z` Git tag on HEAD and fails without one. The manifest version is a development placeholder. Never create or push release tags unless explicitly requested.
-- Use fixtures and mocks for lifecycle tests. Never interrupt, stop or kill the user's running kernels to validate a change. Live discovery checks must remain read-only.
-- Distinguish automated tests and read-only discovery checks from manual verification in VS Code/Cursor. Keep README.md and PLAN.md aligned with behavior changes and the packaged version.
+- Use pnpm for dependencies and project commands. Keep `pnpm-lock.yaml`; do not add npm or Yarn lockfiles.
+- Keep code in TypeScript and prefer standard VS Code APIs.
+- Run `pnpm format` after code edits and `pnpm check` before finishing. Run `pnpm test` for behavior changes and `pnpm package` for runtime or manifest changes.
+- Do not bump the manifest version or create release tags unless requested. Packaging requires an exact `vX.Y.Z` or `X.Y.Z` tag on HEAD.
+- Keep documentation simple: only core usage and instructions. Avoid implementation details, repeated explanations and work-session notes.
+- Use the ignored `temp/` folder for temporary code, Markdown files and other scratch work. Create it when needed; do not commit its contents.
+- Test with fixtures and mocks. Live checks must be read-only; never interrupt or stop the user's kernels for validation. Report automated checks separately from manual editor verification.
 
-## Discovery and notebook identity
+## Discovery
 
-- Run on the Linux workspace host, including Remote SSH, WSL and dev containers. Support both editor-launched raw kernels and JupyterLab/Notebook kernels; an editor kernel may have no Jupyter server.
-- Discovery must work without asking the user for a Jupyter server URL or token. Read only the current Linux account's runtime metadata and processes. Never log credentials or complete process environments.
-- Discover private, owned server runtime files automatically, including directories found from running kernels' connection paths. Different kernels can use different virtual environments and runtime directories. Verify the live server process and allow only loopback endpoints before using discovered credentials.
-- Show only verified owned kernel processes. Exclude other users' kernels, ordinary Python jobs and server processes from the kernel list.
-- Notebook associations must be based on exact identity evidence; never guess from the working directory or the currently focused notebook.
-- Prefer the supported Jupyter extension API for notebooks in the current window. Match diagnostic PID and connection path to the owned process list. Probe only idle kernels, bound diagnostic execution, and cache against kernel handle, PID, start ticks and connection path. Never start a kernel or queue diagnostics behind busy computation.
-- The Jupyter API only sees its own editor window. For unavailable mappings and kernels in other windows, use bounded, owned Jupyter extension launch logs as a read-only fallback. Require a single completed launch with the exact connection path and matching process creation time; reject stale, overlapping or conflicting evidence. Never echo raw logs or process arguments.
-- Launch-log names describe the notebook at launch and may miss later renames or attachments. Prefer live API/server notebook metadata. Treat log parsing as optional: missing or incompatible logs must not prevent process monitoring.
+- Run on the Linux workspace host, including Remote SSH, WSL and containers. Support editor kernels with or without a Jupyter server.
+- Discover only the current account's verified kernel processes and private runtime metadata. Exclude ordinary Python jobs and server processes.
+- Find runtime directories automatically, including kernel connection directories. Never ask for server URLs or tokens. Verify server ownership and live identity, and use only loopback endpoints.
+- Never log credentials, complete process environments, raw launch logs or process arguments.
+- Match notebooks using exact identity evidence; never infer from workspace location or the focused notebook.
+- Prefer the current-window Jupyter API. Probe only idle kernels with bounded execution; never start kernels or queue probes behind computation. Match PID and connection path, and cache by kernel handle, PID, start ticks and connection path.
+- Use bounded, owned launch logs only as an optional fallback. Require one completed launch matching the exact connection path and process creation time; reject stale or conflicting evidence. Prefer live API/server metadata.
 
-## Sidebar and copying
+## Sidebar
 
-- Put kernels verified as belonging to this editor window under **Current window**, first. Determine membership from the current-window API or the exact extension-host log location, never from filename or workspace proximity.
-- Group remaining kernels by Jupyter server. Keep other editor kernels separate, with a fallback group for unclassified kernels. Current-window membership takes precedence over server grouping without losing the server identity needed for shutdown.
-- Use short notebook filenames as kernel labels; for shared kernels use the first filename plus a count. Fall back to a compact Python/PID label rather than a long connection identifier. Preserve full paths in copyable details.
-- Keep the UI concise: show CPU/RAM summaries and process uptime in details. Avoid explanatory prose such as `(one core = 100%)`, redundant descriptions and unavailable metadata placeholders in detail rows.
-- Do not open `.txt` files or editor documents when selecting kernels. Keep details in the tree, with click-to-copy, Copy actions and Ctrl/Cmd+C support.
-- Uptime means process lifetime, not cell execution duration. CPU is sampled process usage; RAM is process RSS. Do not imply these include worker subprocesses or GPU memory.
+- Show verified current-window kernels first. Use the current-window API or exact extension-host log location to establish membership.
+- Group remaining kernels by server, then other editor kernels and unclassified kernels. Preserve server identity and shutdown routing regardless of display group.
+- Use short notebook labels, with a count for shared kernels; fall back to Python/PID. Keep full paths copyable.
+- Keep summaries and details concise. Use tree details, click-to-copy, Copy actions and Ctrl/Cmd+C; do not open documents on selection.
+- Uptime is process lifetime, CPU is sampled process usage, and RAM is process RSS. These exclude worker subprocesses and GPU memory.
 
-## Lifecycle actions
+## Kernel actions
 
-- Recheck process identity and ownership after confirmation before any lifecycle action.
-- Stop a matched server kernel through the revalidated Jupyter shutdown API. Use SIGTERM for raw/unmapped kernels, SIGINT for interrupt and SIGKILL only for an explicit force-kill action.
-- Do not silently escalate a failed graceful stop to force kill or fall back to signals after an API shutdown failure. Never shut down the entire Jupyter server when acting on a kernel.
-- Preserve server routing and identity when enriching notebook metadata or changing display groups. Do not report a signal being sent as proof that the process has exited.
+- Confirm actions, then recheck process identity and ownership.
+- Stop matched server kernels through the revalidated Jupyter shutdown API. Use SIGTERM for raw/unmapped kernels, SIGINT for interrupt and SIGKILL only for explicit force kill.
+- Never escalate a failed stop, fall back to signals after API failure, or shut down the whole server.
+- Sending a signal does not prove that the process exited.
