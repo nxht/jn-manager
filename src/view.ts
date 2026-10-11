@@ -131,37 +131,46 @@ export function copyText(item: unknown): string | undefined {
 export class KernelView implements vscode.TreeDataProvider<Entry>, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<Entry | undefined>();
   readonly onDidChangeTreeData = this.changed.event;
-  private rows: KernelRow[] = [];
   private groups: GroupItem[] = [];
   private readonly kernels = new Map<KernelRow, KernelItem>();
   private readonly details = new Map<KernelRow, DetailItem[]>();
-  private sampledAges: number[] = [];
+  private sampledAges = new Map<KernelRow, number>();
   private sampledAt = 0;
   private message = 'Loading kernels…';
 
   constructor(private readonly settings: () => HighlightSettings = () => defaultHighlights) {}
 
   update(rows: KernelRow[], message = 'No running kernels.', sampledAt = performance.now()): void {
-    this.rows = rows;
-    this.groups = groupKernels(rows).map((group) => new GroupItem(group));
     this.kernels.clear();
     this.details.clear();
-    this.sampledAges = rows.map((row) => row.process.ageSeconds);
+    this.sampledAges = new Map(rows.map((row) => [row, row.process.ageSeconds]));
     this.sampledAt = sampledAt;
     this.message = message;
     this.advanceUptime();
+    const settings = this.settings();
+    const host = { cpuCount: cpus().length, totalMemory: totalmem() };
+    for (const row of rows) {
+      this.kernels.set(
+        row,
+        new KernelItem(
+          row,
+          highestSeverity(Object.values(resourceHighlights(row.process, host, settings))),
+        ),
+      );
+    }
+    this.groups = groupKernels(rows).map((group) => new GroupItem(group));
     this.changed.fire(undefined);
   }
 
   private advanceUptime(): void {
     const elapsedSeconds = Math.max(0, performance.now() - this.sampledAt) / 1000;
-    for (const [index, row] of this.rows.entries()) {
-      row.process.ageSeconds = (this.sampledAges[index] ?? 0) + elapsedSeconds;
+    for (const [row, age] of this.sampledAges) {
+      row.process.ageSeconds = age + elapsedSeconds;
     }
   }
 
   tick(): void {
-    if (!this.rows.length) return;
+    if (!this.sampledAges.size) return;
     this.advanceUptime();
     const settings = this.settings();
     const host = { cpuCount: cpus().length, totalMemory: totalmem() };
@@ -174,34 +183,27 @@ export class KernelView implements vscode.TreeDataProvider<Entry>, vscode.Dispos
   }
 
   contains(row: KernelRow): boolean {
-    return this.rows.some((r) => r === row);
+    return this.sampledAges.has(row);
   }
   getTreeItem(item: Entry): vscode.TreeItem {
     return item;
   }
 
   getChildren(item?: Entry): Entry[] {
-    const settings = this.settings();
-    const host = { cpuCount: cpus().length, totalMemory: totalmem() };
     if (item instanceof GroupItem)
-      return item.group.rows
-        .filter((row) => this.contains(row))
-        .map((row) => {
-          let kernel = this.kernels.get(row);
-          if (!kernel) {
-            kernel = new KernelItem(
-              row,
-              highestSeverity(Object.values(resourceHighlights(row.process, host, settings))),
-            );
-            this.kernels.set(row, kernel);
-          }
-          return kernel;
-        });
+      return item.group.rows.flatMap((row) => {
+        const kernel = this.kernels.get(row);
+        return kernel ? [kernel] : [];
+      });
     if (item instanceof KernelItem) {
       if (!this.contains(item.row)) return [];
       const cached = this.details.get(item.row);
       if (cached) return cached;
-      const highlights = resourceHighlights(item.row.process, host, settings);
+      const highlights = resourceHighlights(
+        item.row.process,
+        { cpuCount: cpus().length, totalMemory: totalmem() },
+        this.settings(),
+      );
       const details = kernelDetails(item.row).map(
         (d) => new DetailItem(d, item.row, highlights[d.label as keyof typeof highlights]),
       );
@@ -209,13 +211,14 @@ export class KernelView implements vscode.TreeDataProvider<Entry>, vscode.Dispos
       return details;
     }
     if (item) return [];
-    if (this.rows.length) return this.groups;
+    if (this.groups.length) return this.groups;
     return [new vscode.TreeItem(this.message)];
   }
 
   dispose(): void {
     this.details.clear();
     this.kernels.clear();
+    this.sampledAges.clear();
     this.groups = [];
     this.changed.dispose();
   }

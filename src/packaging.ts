@@ -18,20 +18,19 @@ export function taggedVersion(tags: string[]): string {
 export function packageVersion(root: string): string {
   const options = { cwd: root, encoding: 'utf8', stdio: 'pipe' } as const;
   try {
-    execFileSync('git', ['rev-parse', '--verify', 'HEAD'], options);
+    return taggedVersion(
+      execFileSync('git', ['tag', '--points-at', 'HEAD'], options).trim().split(/\r?\n/),
+    );
   } catch (error) {
     const failure = error as NodeJS.ErrnoException & { status?: number };
-    if (failure.code !== 'ENOENT' && failure.status !== 128) throw error;
+    if (failure.code !== 'ENOENT' && failure.status !== 128 && failure.status !== 129) throw error;
     throw new Error('Packaging requires Git and a committed, release-tagged checkout.');
   }
-  const tags = execFileSync('git', ['tag', '--points-at', 'HEAD'], options).trim().split(/\r?\n/);
-  return taggedVersion(tags);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const root = fileURLToPath(new URL('..', import.meta.url));
   const version = packageVersion(root);
-  console.log(`Packaging version ${version} from the exact release tag on HEAD.`);
   execFileSync(
     'pnpm',
     [

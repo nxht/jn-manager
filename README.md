@@ -54,20 +54,6 @@ Prefix: `jnManager.highlights.`. Thresholds use **all host CPUs** and **total ho
 | `uptimeWarningHours` | 🟡 Process uptime > threshold (hours) | `24` |
 | `uptimeCriticalHours` | 🔴 Process uptime > threshold (hours) | `48` |
 
-| Display | Behavior |
-| --- | --- |
-| Icons | Detail: metric severity; kernel: highest severity |
-| Status bar | Total kernel RAM, including hidden groups; warning/error icon and background |
-| Text | Follows `explorer.decorations.colors` and selection styling |
-| Uptime warning = `0` | Warns for positive process uptime |
-| Custom colors | Set `jnManager.warningForeground` / `jnManager.criticalForeground` in `workbench.colorCustomizations` |
+## Notes
 
-## Measurement limits
-
-| Metric | Measures |
-| --- | --- |
-| CPU | Kernel process usage; 100% per core; appears after the second sample |
-| RAM | Kernel process RSS; excludes worker processes and GPU memory |
-| Uptime | Process lifetime, not cell execution time |
-
-Only your Linux account’s kernels appear. Remote HTTP servers are unsupported. Jupyter permission is optional for monitoring.
+Only your Linux account’s kernels appear. Remote HTTP servers are unsupported.

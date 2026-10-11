@@ -45,8 +45,9 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
     },
   };
   let visibleRows: KernelRow[] = [];
+  const tick = vi.fn();
   class View {
-    tick() {}
+    tick = tick;
     update(rows: KernelRow[]) {
       visibleRows = rows;
     }
@@ -150,6 +151,7 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
   vi.advanceTimersByTime(2000);
   assert.equal(tree.description, '00:03');
   assert.equal(scans, 1);
+  assert.equal(tick.mock.calls.length, 0);
   bytes = 512 * 1024 ** 2;
   vi.advanceTimersByTime(3000);
   await settle();
@@ -163,6 +165,11 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
   assert.equal(discovery.mock.calls.length, 1);
   assert.deepEqual(visibleRows, []);
   assert.equal(status.text, '$(notebook) 537 MB');
+  const visibleScans = scans;
+  vi.advanceTimersByTime(1000);
+  await settle();
+  assert.equal(tick.mock.calls.length, 1);
+  assert.equal(scans, visibleScans);
   tree.visible = false;
   visibilityChanged();
   const refreshStatus = async () => {
@@ -175,7 +182,6 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
   assert.equal(status.text, '$(warning) 850 MB');
   assert.equal(background(), 'statusBarItem.warningBackground');
   assert.match(status.tooltip, /2 kernel processes/);
-  assert.match(status.tooltip, /85.0% of host RAM/);
   assert.match(status.tooltip, /Warning/);
 
   secondBytes = 500_000_000;

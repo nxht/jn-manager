@@ -44,10 +44,6 @@ export function memoryStatus(
   const bytes = processes.reduce((sum, process) => sum + process.rssBytes, 0);
   const total = formatBytes(bytes);
   const severity = totalMemoryHighlight(bytes, totalMemory ?? 0, settings);
-  // const percent =
-  //   totalMemory !== undefined && Number.isFinite(totalMemory) && totalMemory > 0
-  //     ? `\n${((bytes / totalMemory) * 100).toFixed(1)}% of host RAM.`
-  //     : '';
   const alert = severity
     ? `\n${severity === 'critical' ? 'Critical' : 'Warning'}: total kernel RAM.`
     : '';

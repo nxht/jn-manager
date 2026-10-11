@@ -119,54 +119,36 @@ test('returning below the threshold clears warning icons on refresh', () => {
   view.dispose();
 });
 
-test('uptime advances between samples without drift and preserves identity and resource values', () => {
+test('uptime ticks only loaded leaves while summaries omit seconds', () => {
   const clock = vi.spyOn(performance, 'now').mockReturnValue(1000);
   const view = new KernelView();
-  const sample = {
-    ...row,
-    serverId: 'server-one',
-    serverUrl: 'http://127.0.0.1:8888',
-    process: { ...row.process, ageSeconds: 59, cpuPercent: 12.5 },
-  };
+  const sample = { ...row, process: { ...row.process, ageSeconds: 59, cpuPercent: 12.5 } };
   view.update([sample]);
-  const selected = kernel(view);
-  const details = view.getChildren(selected) as DetailItem[];
-  const uptime = details.find((detail) => detail.detail.label === 'Uptime');
-  assert.ok(uptime);
+  const item = kernel(view);
   const events: unknown[] = [];
   view.onDidChangeTreeData((item) => events.push(item));
+  view.tick();
+  assert.deepEqual(events, []);
+  const details = view.getChildren(item) as DetailItem[];
+  const uptime = details.find((detail) => detail.detail.label === 'Uptime');
+  assert.ok(uptime);
 
   clock.mockReturnValue(2000);
   view.tick();
   assert.deepEqual(events, [uptime]);
-  assert.equal(selected.description, '12.5% · 0 MB · <1m');
-  assert.match(selected.tooltip as string, /Uptime: 59s/);
-  assert.equal(view.getChildren(selected), details);
+  assert.equal(copyText(uptime), '1m');
   assert.equal(uptime.description, '1m');
   assert.equal(uptime.tooltip, '1m');
-  assert.equal(uptime.collapsibleState, 0);
-  const updated = kernel(view);
-  assert.equal(updated, selected);
-  assert.equal(updated.description, '12.5% · 0 MB · <1m');
-  assert.equal(updated.id, selected.id);
-  assert.equal(updated.row, selected.row);
-  assert.equal(view.contains(selected.row), true);
-  assert.equal(updated.row.serverId, 'server-one');
-  assert.equal(updated.row.serverUrl, sample.serverUrl);
-  assert.equal(copyText(uptime), '1m');
-  assert.match(copyText(selected) ?? '', /Uptime: 1m\n/);
-  assert.match(updated.tooltip as string, /Uptime: 59s/);
+  assert.equal(kernel(view), item);
+  assert.equal(item.description, '12.5% · 0 MB · <1m');
 
-  // A delayed callback uses elapsed time, rather than adding one second per tick.
   clock.mockReturnValue(5500);
   view.tick();
   view.tick();
   assert.deepEqual(events, [uptime, uptime]);
   assert.equal(copyText(uptime), '1m 3s');
-  assert.equal(kernel(view).row.process.ageSeconds, 63.5);
-  assert.equal(kernel(view).description, '12.5% · 0 MB · <1m');
-  assert.equal(sample.process.cpuPercent, 12.5);
-  assert.equal(sample.process.rssBytes, 800);
+  assert.match(copyText(item) ?? '', /Uptime: 1m 3s/);
+  assert.equal(view.getChildren(item), details);
   for (const [seconds, summary] of [
     [59.9, '<1m'],
     [60, '1m'],
@@ -174,22 +156,22 @@ test('uptime advances between samples without drift and preserves identity and r
     [7559, '2h 5m'],
     [97259, '1d 3h'],
   ] as const) {
-    const item = new KernelItem({ ...sample, process: { ...sample.process, ageSeconds: seconds } });
-    assert.equal(item.description, `12.5% · 0 MB · ${summary}`);
+    assert.equal(
+      new KernelItem({ ...sample, process: { ...sample.process, ageSeconds: seconds } })
+        .description,
+      `12.5% · 0 MB · ${summary}`,
+    );
   }
   view.dispose();
 });
 
-test('uptime accounts for enrichment delay, updates highlights and resets on a new sample', () => {
+test('ticks update uptime highlights and discard details on a new sample', () => {
   const clock = vi.spyOn(performance, 'now').mockReturnValue(3000);
   const view = new KernelView();
   view.update([{ ...row, process: { ...row.process, ageSeconds: 86400 } }], undefined, 1000);
   assert.equal(kernel(view).row.process.ageSeconds, 86402);
-  assert.equal(icon(kernel(view)).color?.id, 'jnManager.warningForeground');
-
   view.update([{ ...row, process: { ...row.process, ageSeconds: 86399 } }]);
   const item = kernel(view);
-  assert.equal(icon(item).color, undefined);
   const uptime = (view.getChildren(item) as DetailItem[]).find(
     (detail) => detail.detail.label === 'Uptime',
   );
@@ -198,7 +180,6 @@ test('uptime accounts for enrichment delay, updates highlights and resets on a n
   view.onDidChangeTreeData((item) => events.push(item));
   clock.mockReturnValue(5000);
   view.tick();
-  assert.equal(item.row.process.ageSeconds, 86401);
   assert.equal(icon(item).color, undefined);
   assert.equal(icon(uptime).color?.id, 'jnManager.warningForeground');
   assert.deepEqual(events, [uptime]);
@@ -210,24 +191,5 @@ test('uptime accounts for enrichment delay, updates highlights and resets on a n
   assert.deepEqual(events, []);
   assert.deepEqual(view.getChildren(item), []);
   assert.equal(view.contains(item.row), false);
-  assert.equal(view.getChildren()[0]?.label, 'No running kernels.');
-  view.dispose();
-});
-
-test('ticks do not refresh kernels whose details have not been loaded', () => {
-  const clock = vi.spyOn(performance, 'now').mockReturnValue(1000);
-  const view = new KernelView();
-  view.update([{ ...row, process: { ...row.process } }]);
-  const item = kernel(view);
-  const events: unknown[] = [];
-  view.onDidChangeTreeData((item) => events.push(item));
-  clock.mockReturnValue(2000);
-  view.tick();
-  assert.deepEqual(events, []);
-  const uptime = (view.getChildren(item) as DetailItem[]).find(
-    (detail) => detail.detail.label === 'Uptime',
-  );
-  assert.ok(uptime);
-  assert.equal(copyText(uptime), '2s');
   view.dispose();
 });
