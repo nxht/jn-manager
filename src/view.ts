@@ -29,7 +29,8 @@ export class KernelItem extends vscode.TreeItem {
     this.id = `${p.pid}:${p.startTicks}`;
     this.contextValue = 'ownedKernel';
     const cpu = p.cpuPercent === undefined ? '' : `${p.cpuPercent.toFixed(1)}% · `;
-    this.description = `${cpu}${formatBytes(p.rssBytes)} · ${formatUptime(p.ageSeconds)}`;
+    const uptime = p.ageSeconds < 60 ? '<1m' : formatUptime(Math.floor(p.ageSeconds / 60) * 60);
+    this.description = `${cpu}${formatBytes(p.rssBytes)} · ${uptime}`;
     this.tooltip = kernelDetails(row)
       .map((d) => `${d.label}: ${d.value}`)
       .join('\n');
@@ -48,6 +49,7 @@ export class DetailItem extends vscode.TreeItem {
     severity?: Severity,
   ) {
     super(detail.label, vscode.TreeItemCollapsibleState.None);
+    if (detail.label === 'Uptime') this.id = `${row.process.pid}:${row.process.startTicks}:uptime`;
     this.description = detail.value;
     this.contextValue = 'kernelDetail';
     this.tooltip = detail.value;
@@ -64,6 +66,19 @@ export class DetailItem extends vscode.TreeItem {
       Status: 'pulse',
     };
     this.iconPath = new vscode.ThemeIcon(icons[detail.label] ?? 'info', severityColor(severity));
+  }
+
+  updateUptime(row: KernelRow, severity?: Severity): boolean {
+    const value = formatUptime(row.process.ageSeconds);
+    const color = severityColor(severity);
+    if (this.detail.value === value && (this.iconPath as vscode.ThemeIcon).color?.id === color?.id)
+      return false;
+    this.detail.value = value;
+    this.description = value;
+    this.tooltip = value;
+    this.iconPath = new vscode.ThemeIcon('clock', color);
+    this.resourceUri = highlightUri(row, 'Uptime', severity);
+    return true;
   }
 }
 
@@ -117,14 +132,45 @@ export class KernelView implements vscode.TreeDataProvider<Entry>, vscode.Dispos
   private readonly changed = new vscode.EventEmitter<Entry | undefined>();
   readonly onDidChangeTreeData = this.changed.event;
   private rows: KernelRow[] = [];
+  private groups: GroupItem[] = [];
+  private readonly kernels = new Map<KernelRow, KernelItem>();
+  private readonly details = new Map<KernelRow, DetailItem[]>();
+  private sampledAges: number[] = [];
+  private sampledAt = 0;
   private message = 'Loading kernels…';
 
   constructor(private readonly settings: () => HighlightSettings = () => defaultHighlights) {}
 
-  update(rows: KernelRow[], message = 'No running kernels.'): void {
+  update(rows: KernelRow[], message = 'No running kernels.', sampledAt = performance.now()): void {
     this.rows = rows;
+    this.groups = groupKernels(rows).map((group) => new GroupItem(group));
+    this.kernels.clear();
+    this.details.clear();
+    this.sampledAges = rows.map((row) => row.process.ageSeconds);
+    this.sampledAt = sampledAt;
     this.message = message;
+    this.advanceUptime();
     this.changed.fire(undefined);
+  }
+
+  private advanceUptime(): void {
+    const elapsedSeconds = Math.max(0, performance.now() - this.sampledAt) / 1000;
+    for (const [index, row] of this.rows.entries()) {
+      row.process.ageSeconds = (this.sampledAges[index] ?? 0) + elapsedSeconds;
+    }
+  }
+
+  tick(): void {
+    if (!this.rows.length) return;
+    this.advanceUptime();
+    const settings = this.settings();
+    const host = { cpuCount: cpus().length, totalMemory: totalmem() };
+    for (const [row, details] of this.details) {
+      const uptime = details.find((detail) => detail.detail.label === 'Uptime');
+      if (uptime?.updateUptime(row, resourceHighlights(row.process, host, settings).Uptime)) {
+        this.changed.fire(uptime);
+      }
+    }
   }
 
   contains(row: KernelRow): boolean {
@@ -138,25 +184,39 @@ export class KernelView implements vscode.TreeDataProvider<Entry>, vscode.Dispos
     const settings = this.settings();
     const host = { cpuCount: cpus().length, totalMemory: totalmem() };
     if (item instanceof GroupItem)
-      return item.group.rows.map(
-        (row) =>
-          new KernelItem(
-            row,
-            highestSeverity(Object.values(resourceHighlights(row.process, host, settings))),
-          ),
-      );
+      return item.group.rows
+        .filter((row) => this.contains(row))
+        .map((row) => {
+          let kernel = this.kernels.get(row);
+          if (!kernel) {
+            kernel = new KernelItem(
+              row,
+              highestSeverity(Object.values(resourceHighlights(row.process, host, settings))),
+            );
+            this.kernels.set(row, kernel);
+          }
+          return kernel;
+        });
     if (item instanceof KernelItem) {
+      if (!this.contains(item.row)) return [];
+      const cached = this.details.get(item.row);
+      if (cached) return cached;
       const highlights = resourceHighlights(item.row.process, host, settings);
-      return kernelDetails(item.row).map(
+      const details = kernelDetails(item.row).map(
         (d) => new DetailItem(d, item.row, highlights[d.label as keyof typeof highlights]),
       );
+      this.details.set(item.row, details);
+      return details;
     }
     if (item) return [];
-    if (this.rows.length) return groupKernels(this.rows).map((group) => new GroupItem(group));
+    if (this.rows.length) return this.groups;
     return [new vscode.TreeItem(this.message)];
   }
 
   dispose(): void {
+    this.details.clear();
+    this.kernels.clear();
+    this.groups = [];
     this.changed.dispose();
   }
 }

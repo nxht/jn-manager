@@ -107,6 +107,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const currentRevision = revision;
     try {
       const processes = await collector.snapshot();
+      const sampledAt = performance.now();
       if (!disposed && currentRevision === revision) {
         const summary = memoryStatus(processes, totalmem(), highlightSettings());
         memory.backgroundColor = summary.severity
@@ -144,6 +145,7 @@ export function activate(context: vscode.ExtensionContext): void {
         provider.update(
           visible,
           rows.length ? 'No kernels match the visibility settings.' : 'No running kernels.',
+          sampledAt,
         );
       }
     } catch (error) {
@@ -179,6 +181,7 @@ export function activate(context: vscode.ExtensionContext): void {
     countdown();
     timer = setInterval(() => {
       countdown();
+      if (tree.visible) provider.tick();
       if (Date.now() >= nextRefreshAt) void refresh();
     }, 1000);
   }

@@ -52,7 +52,7 @@
     "check": "biome check .",
     "typecheck": "tsc -p tsconfig.test.json",
     "prepackage": "pnpm compile",
-    "package": "vsce package --out build/",
+    "package": "node dist/packaging.js",
     "vscode:prepublish": "pnpm compile"
   },
   "dependencies": {},

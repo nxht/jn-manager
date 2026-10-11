@@ -46,6 +46,7 @@ test('status memory refreshes with the sidebar hidden, ignores filters and clear
   };
   let visibleRows: KernelRow[] = [];
   class View {
+    tick() {}
     update(rows: KernelRow[]) {
       visibleRows = rows;
     }
